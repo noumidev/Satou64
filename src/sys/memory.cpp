@@ -79,7 +79,7 @@ void map(const u64 paddr, const u64 size, u8 *mem) {
     const u64 endPage = page + pageNum;
 
     for (u64 i = page; i < endPage; i++) {
-        pageTable[i] = &mem[pageToAddress(i)];
+        pageTable[i] = &mem[pageToAddress(i - page)];
     }
 }
 
@@ -94,7 +94,7 @@ u8 read(const u64 paddr) {
     const u64 page = addressToPage(paddr);
 
     if (pageTable[page] != NULL) {
-        const u64 offset = page & PAGE_MASK;
+        const u64 offset = paddr & PAGE_MASK;
 
         return pageTable[page][offset];
     }
@@ -115,7 +115,7 @@ u16 read(const u64 paddr) {
     const u64 page = addressToPage(paddr);
 
     if (pageTable[page] != NULL) {
-        const u64 offset = page & PAGE_MASK;
+        const u64 offset = paddr & PAGE_MASK;
 
         u16 data;
         std::memcpy(&data, &pageTable[page][offset], sizeof(u16));
@@ -139,7 +139,7 @@ u32 read(const u64 paddr) {
     const u64 page = addressToPage(paddr);
 
     if (pageTable[page] != NULL) {
-        const u64 offset = page & PAGE_MASK;
+        const u64 offset = paddr & PAGE_MASK;
 
         u32 data;
         std::memcpy(&data, &pageTable[page][offset], sizeof(u32));
@@ -162,7 +162,7 @@ u64 read(const u64 paddr) {
     const u64 page = addressToPage(paddr);
 
     if (pageTable[page] != NULL) {
-        const u64 offset = page & PAGE_MASK;
+        const u64 offset = paddr & PAGE_MASK;
 
         u64 data;
         std::memcpy(&data, &pageTable[page][offset], sizeof(u64));
@@ -195,7 +195,7 @@ void write(const u64 paddr, const u8 data) {
     const u64 page = addressToPage(paddr);
 
     if (pageTable[page] != NULL) {
-        const u64 offset = page & PAGE_MASK;
+        const u64 offset = paddr & PAGE_MASK;
 
         pageTable[page][offset] = data;
 
@@ -218,7 +218,7 @@ void write(const u64 paddr, const u16 data) {
     const u64 page = addressToPage(paddr);
 
     if (pageTable[page] != NULL) {
-        const u64 offset = page & PAGE_MASK;
+        const u64 offset = paddr & PAGE_MASK;
         const u16 swappedData = byteswap(data);
 
         std::memcpy(&pageTable[page][offset], &swappedData, sizeof(u16));
@@ -241,7 +241,7 @@ void write(const u64 paddr, const u32 data) {
     const u64 page = addressToPage(paddr);
 
     if (pageTable[page] != NULL) {
-        const u64 offset = page & PAGE_MASK;
+        const u64 offset = paddr & PAGE_MASK;
         const u32 swappedData = byteswap(data);
 
         std::memcpy(&pageTable[page][offset], &swappedData, sizeof(u32));
@@ -263,7 +263,7 @@ void write(const u64 paddr, const u64 data) {
     const u64 page = addressToPage(paddr);
 
     if (pageTable[page] != NULL) {
-        const u64 offset = page & PAGE_MASK;
+        const u64 offset = paddr & PAGE_MASK;
         const u64 swappedData = byteswap(data);
 
         std::memcpy(&pageTable[page][offset], &swappedData, sizeof(u64));
