@@ -67,18 +67,43 @@ constexpr const char *REG_NAMES[Register::NumberOfRegisters] = {
 
 namespace Opcode {
     enum : u32 {
+        SPECIAL = 0x00,
+        BNE = 0x05,
+        ANDI = 0x0C,
         ORI = 0x0D,
         LUI = 0x0F,
+        LW = 0x23,
         SW = 0x2B,
     };
 }
 
+namespace SpecialOpcode {
+    enum : u32 {
+        SLL = 0x00,
+        JR = 0x08,
+    };
+};
+
 enum class ALUOpImm {
+    ANDI,
     LUI,
     ORI,
 };
 
+enum class ALUOpReg {
+    SLL,
+};
+
+enum class BranchOp {
+    BNE,
+};
+
+enum class JumpOp {
+    JR,
+};
+
 enum class LoadStoreOp {
+    LW,
     SW,
 };
 
@@ -122,6 +147,8 @@ struct RegisterFile {
 
 RegisterFile regFile;
 
+bool inDelaySlot[2];
+
 void init() {}
 
 void deinit() {}
@@ -137,6 +164,8 @@ void reset(const bool isFastBoot) {
     if (isFastBoot) {
         setPC<false>(ADDR_FAST_BOOT);
     }
+
+    inDelaySlot[0] = inDelaySlot[1] = false;
 }
 
 bool isValidRegisterIndex(const u32 idx) {
@@ -202,6 +231,34 @@ void setPC(const u64 addr) {
         regFile.pc = addr;
         regFile.npc = addr + sizeof(Instruction);
     }
+}
+
+void branch(const u64 target, const bool condition, const u32 linkReg, const bool isLikely) {
+    if (inDelaySlot[0]) {
+        PLOG_FATAL << "Branch instruction in delay slot";
+
+        exit(0);
+    }
+
+    // Save return address
+    set(linkReg, regFile.npc);
+
+    // We're in a delay slot now
+    inDelaySlot[1] = true;
+
+    if (condition) {
+        setPC<true>(target);
+    } else if (isLikely) {
+        // Skip delay slot
+        setPC<false>(regFile.npc);
+
+        inDelaySlot[1] = false;
+    }
+}
+
+void advanceDelaySlot() {
+    inDelaySlot[0] = inDelaySlot[1];
+    inDelaySlot[1] = false;
 }
 
 void advancePC() {
@@ -312,6 +369,9 @@ void doALUImmediate(const Instruction instr) {
     const u32 imm = instr.iType.immediate;
 
     switch (op) {
+        case ALUOpImm::ANDI:
+            set(rt, get(rs) & (u64)imm);
+            break;
         case ALUOpImm::ORI:
             set(rt, get(rs) | (u64)imm);
             break;
@@ -327,6 +387,9 @@ void doALUImmediate(const Instruction instr) {
         const u32 pc = getPC<true>();
 
         switch (op) {
+            case ALUOpImm::ANDI:
+                std::printf("[%08X:%08X] andi %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, get(rt));
+                break;
             case ALUOpImm::LUI:
                 std::printf("[%08X:%08X] lui %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, imm, rtName, get(rt));
                 break;
@@ -334,6 +397,106 @@ void doALUImmediate(const Instruction instr) {
                 std::printf("[%08X:%08X] ori %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, get(rt));
                 break;
         }
+    }
+}
+
+template<ALUOpReg op>
+void doALURegister(const Instruction instr) {
+    const u32 rd = instr.rType.rd;
+    const u32 rs = instr.rType.rs;
+    const u32 rt = instr.rType.rt;
+
+    const u32 sa = instr.rType.sa;
+
+    const u64 rsData = get(rs);
+    const u64 rtData = get(rt);
+
+    (void)rsData;
+
+    switch (op) {
+        case ALUOpReg::SLL:
+            set(rd, (u32)(rtData << sa));
+            break;
+    }
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const char *rdName = REG_NAMES[rd];
+        const char *rsName = REG_NAMES[rs];
+        const char *rtName = REG_NAMES[rt];
+
+        (void)rsName;
+
+        const u64 rdData = get(rd);
+
+        const u32 pc = getPC<true>();
+
+        switch (op) {
+            case ALUOpReg::SLL:
+                if (rd == Register::R0) {
+                    std::printf("[%08X:%08X] nop\n", pc, instr.raw);
+                } else {
+                    std::printf("[%08X:%08X] sll %s, %s, %u; %s = %016llX\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
+                }
+                break;
+        }
+    }
+}
+
+template<BranchOp op>
+void doBranch(const Instruction instr) {
+    const u32 rs = instr.iType.rs;
+    const u32 rt = instr.iType.rt;
+
+    const u32 imm = instr.iType.immediate;
+    const u64 offset = (i16)imm;
+
+    const u64 target = getPC<false>() + (offset << 2);
+
+    const u64 rsData = get(rs);
+    const u64 rtData = get(rt);
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const char *rsName = REG_NAMES[rs];
+        const char *rtName = REG_NAMES[rt];
+
+        const u32 pc = getPC<true>();
+
+        switch (op) {
+            case BranchOp::BNE:
+                std::printf("[%08X:%08X] bne %s, %s, %08llX; %s = %016llX, %s = %016llX\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
+                break;
+        }
+    }
+
+    switch (op) {
+        case BranchOp::BNE:
+            branch(target, rsData != rtData, Register::R0, false);
+            break;
+    }
+}
+
+template<JumpOp op>
+void doJump(const Instruction instr) {
+    const u32 rs = instr.rType.rs;
+
+    const u64 target = get(rs);
+
+    if (ENABLE_DISASSEMBLER) {
+        const char *rsName = REG_NAMES[rs];
+
+        const u32 pc = getPC<true>();
+
+        switch (op) {
+            case JumpOp::JR:
+                std::printf("[%08X:%08X] jr %s; PC = %08llX\n", pc, instr.raw, rsName, target);
+                break;
+        }
+    }
+
+    switch (op) {
+        case JumpOp::JR:
+            branch(target, true, Register::R0, false);
+            break;
     }
 }
 
@@ -356,6 +519,9 @@ void doLoadStore(const Instruction instr) {
         const u64 data = get(rt);
 
         switch (op) {
+            case LoadStoreOp::LW:
+                std::printf("[%08X:%08X] lw %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
+                break;
             case LoadStoreOp::SW:
                 std::printf("[%08X:%08X] sw %s, %04X(%s); [%08llX] = %08X\n", pc, instr.raw, rtName, imm, baseName, vaddr, (u32)data);
                 break;
@@ -363,6 +529,15 @@ void doLoadStore(const Instruction instr) {
     }
 
     switch (op) {
+        case LoadStoreOp::LW:
+            if (!isAlignedAddress<u32>(vaddr)) {
+                PLOG_FATAL << "Unaligned LW address " << std::hex << vaddr;
+
+                exit(0);
+            }
+
+            set(rt, read<u32>(vaddr));
+            break;
         case LoadStoreOp::SW:
             if (!isAlignedAddress<u32>(vaddr)) {
                 PLOG_FATAL << "Unaligned SW address " << std::hex << vaddr;
@@ -381,11 +556,36 @@ void doInstruction() {
 
     const u32 op = instr.iType.op;
     switch (op) {
+        case Opcode::SPECIAL: {
+                const u32 funct = instr.rType.funct;
+                switch (funct) {
+                    case SpecialOpcode::SLL:
+                        doALURegister<ALUOpReg::SLL>(instr);
+                        break;
+                    case SpecialOpcode::JR:
+                        doJump<JumpOp::JR>(instr);
+                        break;
+                    default:
+                        PLOG_FATAL << "Unrecognized function " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+
+                        exit(0);
+                }
+            }
+            break;
+        case Opcode::BNE:
+            doBranch<BranchOp::BNE>(instr);
+            break;
+        case Opcode::ANDI:
+            doALUImmediate<ALUOpImm::ANDI>(instr);
+            break;
         case Opcode::ORI:
             doALUImmediate<ALUOpImm::ORI>(instr);
             break;
         case Opcode::LUI:
             doALUImmediate<ALUOpImm::LUI>(instr);
+            break;
+        case Opcode::LW:
+            doLoadStore<LoadStoreOp::LW>(instr);
             break;
         case Opcode::SW:
             doLoadStore<LoadStoreOp::SW>(instr);
@@ -402,6 +602,7 @@ void run(const i64 cycles) {
         // Set current PC
         regFile.cpc = getPC<false>();
 
+        advanceDelaySlot();
         doInstruction();
     }
 }

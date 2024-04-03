@@ -42,6 +42,9 @@ void set(const u32 idx, const T data) requires std::is_unsigned_v<T>;
 template<bool isBranch>
 void setPC(const u64 addr);
 
+void branch(const u64 target, const bool condition, const u32 linkReg, const bool isLikely);
+
+void advanceDelaySlot();
 void advancePC();
 
 u64 translateAddress(const u64 vaddr);
