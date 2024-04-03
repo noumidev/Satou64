@@ -27,6 +27,7 @@ std::array<u8 *, NUM_PAGES> pageTable;
 
 std::array<u8, MemorySize::RSP_DMEM> dmem;
 std::array<u8, MemorySize::RDRAM> rdram;
+std::array<u8, PAGE_SIZE> pif;
 
 std::vector<u8> rom;
 
@@ -52,6 +53,7 @@ void init(const char *romPath) {
     map(MemoryBase::RDRAM, MemorySize::RDRAM, rdram.data());
     map(MemoryBase::RSP_DMEM, MemorySize::RSP_DMEM, dmem.data());
     map(MemoryBase::CART_DOM1_A2, rom.size(), rom.data());
+    map(MemoryBase::PIF_RAM, PAGE_SIZE, pif.data());
 }
 
 void deinit() {}

@@ -23,6 +23,7 @@ namespace MemoryBase {
         RDRAM = 0,
         RSP_DMEM = 0x4000000,
         CART_DOM1_A2 = 0x10000000,
+        PIF_RAM = 0x1FC007C0,
     };
 }
 
@@ -31,6 +32,7 @@ namespace MemorySize {
     enum : u64 {
         RDRAM = 0x800000,
         RSP_DMEM = 0x1000,
+        PIF_RAM = 0x40,
         AddressSpace = 0x80000000,
     };
 }
