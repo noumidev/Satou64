@@ -24,6 +24,7 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/external/plog)
 # Set source files
 set(SOURCES
     src/main.cpp
+    src/hw/pi.cpp
     src/hw/cpu/cpu.cpp
     src/sys/emulator.cpp
     src/sys/memory.cpp
@@ -32,6 +33,7 @@ set(SOURCES
 # Set header files
 set(HEADERS
     include/common/types.hpp
+    include/hw/pi.hpp
     include/hw/cpu/cpu.hpp
     include/sys/emulator.hpp
     include/sys/memory.hpp

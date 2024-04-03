@@ -14,6 +14,8 @@
 
 #include <plog/Log.h>
 
+#include "hw/pi.hpp"
+
 namespace sys::memory {
 
 constexpr u64 NUM_PAGES = MemorySize::AddressSpace >> PAGE_SHIFT;
@@ -24,6 +26,7 @@ std::array<u8 *, NUM_PAGES> pageTable;
 // Memory arrays
 
 std::array<u8, MemorySize::RSP_DMEM> dmem;
+std::array<u8, MemorySize::RDRAM> rdram;
 
 std::vector<u8> rom;
 
@@ -46,7 +49,9 @@ void init(const char *romPath) {
     std::fclose(file);
 
     // Map all memory regions
+    map(MemoryBase::RDRAM, MemorySize::RDRAM, rdram.data());
     map(MemoryBase::RSP_DMEM, MemorySize::RSP_DMEM, dmem.data());
+    map(MemoryBase::CART_DOM1_A2, rom.size(), rom.data());
 }
 
 void deinit() {}
@@ -62,6 +67,12 @@ void reset(const bool isFastBoot) {
 
 u64 addressToPage(const u64 addr) {
     return addr >> PAGE_SHIFT;
+}
+
+constexpr u64 addressToIOPage(const u64 addr) {
+    constexpr u64 IO_SHIFT = 20;
+
+    return addr >> IO_SHIFT;
 }
 
 u64 pageToAddress(const u64 page) {
@@ -81,6 +92,26 @@ void map(const u64 paddr, const u64 size, u8 *mem) {
     for (u64 i = page; i < endPage; i++) {
         pageTable[i] = &mem[pageToAddress(i - page)];
     }
+}
+
+u8 *getPointer(const u64 paddr) {
+    if (!isValidPhysicalAddress(paddr)) {
+        PLOG_FATAL << "Invalid physical address " << std::hex << paddr;
+
+        exit(0);
+    }
+
+    const u64 page = addressToPage(paddr);
+
+    if (pageTable[page] != NULL) {
+        const u64 offset = paddr & PAGE_MASK;
+
+        return &pageTable[page][offset];
+    }
+
+    PLOG_FATAL << "Unrecognized physical address " << std::hex << paddr;
+
+    exit(0);
 }
 
 template<>
@@ -176,7 +207,11 @@ u64 read(const u64 paddr) {
 }
 
 u32 readIO(const u64 ioaddr) {
-    switch (ioaddr) {
+    const u64 iopage = addressToIOPage(ioaddr);
+
+    switch (iopage) {
+        case addressToIOPage(hw::pi::IORegister::IOBase):
+            return hw::pi::readIO(ioaddr);
         default:
             PLOG_FATAL << "Unrecognized IO read (address = " << std::hex << ioaddr << ")";
 
@@ -276,7 +311,11 @@ void write(const u64 paddr, const u64 data) {
 }
 
 void writeIO(const u64 ioaddr, const u32 data) {
-    switch (ioaddr) {
+    const u64 iopage = addressToIOPage(ioaddr);
+
+    switch (iopage) {
+        case addressToIOPage(hw::pi::IORegister::IOBase):
+            return hw::pi::writeIO(ioaddr, data);
         default:
             PLOG_FATAL << "Unrecognized IO write (address = " << std::hex << ioaddr << ", data = " << data << ")";
 

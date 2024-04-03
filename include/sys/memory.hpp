@@ -20,13 +20,16 @@ constexpr u32 PAGE_MASK = PAGE_SIZE - 1;
 // Memory region base addresses
 namespace MemoryBase {
     enum : u64 {
+        RDRAM = 0,
         RSP_DMEM = 0x4000000,
+        CART_DOM1_A2 = 0x10000000,
     };
 }
 
 // Memory region sizes
 namespace MemorySize {
     enum : u64 {
+        RDRAM = 0x800000,
         RSP_DMEM = 0x1000,
         AddressSpace = 0x80000000,
     };
@@ -38,6 +41,7 @@ void deinit();
 void reset(const bool isFastBoot);
 
 u64 addressToPage(const u64 addr);
+constexpr u64 addressToIOPage(const u64 addr);
 u64 pageToAddress(const u64 page);
 
 // Returns true if address is a valid physical address
@@ -45,6 +49,8 @@ bool isValidPhysicalAddress(const u64 paddr);
 
 // Maps memory into software fastmem page table
 void map(const u64 paddr, const u64 size, u8 *mem);
+
+u8 *getPointer(const u64 paddr);
 
 // Reads data from system memory
 template<typename T>

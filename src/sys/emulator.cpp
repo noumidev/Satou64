@@ -7,6 +7,7 @@
 
 #include <plog/Log.h>
 
+#include "hw/pi.hpp"
 #include "hw/cpu/cpu.hpp"
 
 #include "sys/memory.hpp"
@@ -21,12 +22,14 @@ void init(const char *romPath) {
     sys::memory::init(romPath);
 
     hw::cpu::init();
+    hw::pi::init();
 }
 
 void deinit() {
     sys::memory::deinit();
 
     hw::cpu::deinit();
+    hw::pi::deinit();
 }
 
 void run() {
@@ -39,6 +42,7 @@ void reset() {
     sys::memory::reset(IS_FAST_BOOT);
 
     hw::cpu::reset(IS_FAST_BOOT);
+    hw::pi::reset();
 }
 
 }
