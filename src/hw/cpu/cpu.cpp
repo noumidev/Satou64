@@ -6,15 +6,19 @@
 #include "hw/cpu/cpu.hpp"
 
 #include <array>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ios>
+#include <string>
 
 #include <plog/Log.h>
 
 #include "sys/memory.hpp"
 
 namespace hw::cpu {
+
+constexpr bool ENABLE_DISASSEMBLER = true;
 
 constexpr u32 ADDR_RESET_VECTOR = 0xBFC00000;
 constexpr u32 ADDR_FAST_BOOT = 0xA4000040;
@@ -53,12 +57,24 @@ namespace Register {
 }
 
 // GPR names
-[[maybe_unused]] constexpr const char *REG_NAMES[Register::NumberOfRegisters] = {
+constexpr const char *REG_NAMES[Register::NumberOfRegisters] = {
     "r0", "at", "v0", "v2", "a0", "a1", "a2", "a3",
     "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
     "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
     "t8", "t9", "k0", "k1", "gp", "sp", "s8", "ra",
     "lo", "hi",
+};
+
+namespace Opcode {
+    enum : u32 {
+        ORI = 0x0D,
+        LUI = 0x0F,
+    };
+}
+
+enum class ALUOpImm {
+    LUI,
+    ORI,
 };
 
 // CPU instruction
@@ -282,12 +298,52 @@ void write(const u64 vaddr, const u64 data) {
     return sys::memory::write(translateAddress(vaddr), data);
 }
 
+template<ALUOpImm op>
+void doALUImmediate(const Instruction instr) {
+    const u32 rs = instr.iType.rs;
+    const u32 rt = instr.iType.rt;
+
+    const u32 imm = instr.iType.immediate;
+
+    switch (op) {
+        case ALUOpImm::ORI:
+            set(rt, get(rs) | (u64)imm);
+            break;
+        case ALUOpImm::LUI:
+            set(rt, imm << 16);
+            break;
+    }
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const char *rsName = REG_NAMES[rs];
+        const char *rtName = REG_NAMES[rt];
+
+        const u32 pc = getPC<true>();
+
+        switch (op) {
+            case ALUOpImm::LUI:
+                std::printf("[%08X:%08X] lui %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, imm, rtName, get(rt));
+                break;
+            case ALUOpImm::ORI:
+                std::printf("[%08X:%08X] ori %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, get(rt));
+                break;
+        }
+    }
+}
+
+
 void doInstruction() {
     Instruction instr;
     instr.raw = fetch();
 
     const u32 op = instr.iType.op;
     switch (op) {
+        case Opcode::ORI:
+            doALUImmediate<ALUOpImm::ORI>(instr);
+            break;
+        case Opcode::LUI:
+            doALUImmediate<ALUOpImm::LUI>(instr);
+            break;
         default:
             PLOG_FATAL << "Unrecognized opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
 
