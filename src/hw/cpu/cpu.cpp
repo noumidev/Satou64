@@ -72,10 +72,13 @@ namespace Opcode {
         JAL = 0x03,
         BEQ = 0x04,
         BNE = 0x05,
+        BGTZ = 0x07,
+        ADDI = 0x08,
         ADDIU = 0x09,
         ANDI = 0x0C,
         ORI = 0x0D,
         LUI = 0x0F,
+        LB = 0x20,
         LH = 0x21,
         LW = 0x23,
         LBU = 0x24,
@@ -90,6 +93,7 @@ namespace Opcode {
 namespace SpecialOpcode {
     enum : u32 {
         SLL = 0x00,
+        SRL = 0x02,
         JR = 0x08,
         JALR = 0x09,
         ADD = 0x20,
@@ -99,6 +103,7 @@ namespace SpecialOpcode {
 };
 
 enum class ALUOpImm {
+    ADDI,
     ADDIU,
     ANDI,
     LUI,
@@ -110,10 +115,12 @@ enum class ALUOpReg {
     ADDU,
     SLL,
     SLT,
+    SRL,
 };
 
 enum class BranchOp {
     BEQ,
+    BGTZ,
     BNE,
 };
 
@@ -125,6 +132,7 @@ enum class JumpOp {
 };
 
 enum class LoadStoreOp {
+    LB,
     LBU,
     LD,
     LH,
@@ -254,6 +262,12 @@ void set(const u32 idx, const u64 data) {
 template<bool isBranch>
 void setPC(const u64 addr) {
     if constexpr (isBranch) {
+        if (addr == getPC<true>()) {
+            PLOG_FATAL << "Infinite loop (address = " << std::hex << addr << ")";
+
+            exit(0);
+        }
+
         regFile.npc = addr;
     } else {
         regFile.pc = addr;
@@ -397,8 +411,13 @@ void doALUImmediate(const Instruction instr) {
     const u32 imm = instr.iType.immediate;
 
     switch (op) {
+        case ALUOpImm::ADDI:
+            // TODO: overflow check
+
+            set(rt, (u32)(get(rs) + (u64)(i16)imm));
+            break;
         case ALUOpImm::ADDIU:
-            set(rt, get(rs) + (u64)(i16)imm);
+            set(rt, (u32)(get(rs) + (u64)(i16)imm));
             break;
         case ALUOpImm::ANDI:
             set(rt, get(rs) & (u64)imm);
@@ -418,6 +437,9 @@ void doALUImmediate(const Instruction instr) {
         const u32 pc = getPC<true>();
 
         switch (op) {
+            case ALUOpImm::ADDI:
+                std::printf("[%08X:%08X] addiu %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, get(rt));
+                break;
             case ALUOpImm::ADDIU:
                 std::printf("[%08X:%08X] addiu %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, get(rt));
                 break;
@@ -459,6 +481,9 @@ void doALURegister(const Instruction instr) {
         case ALUOpReg::SLT:
             set(rd, (u64)((i64)rsData < (i64)rtData));
             break;
+        case ALUOpReg::SRL:
+            set(rd, (u32)(rtData >> sa));
+            break;
     }
 
     if constexpr (ENABLE_DISASSEMBLER) {
@@ -487,6 +512,9 @@ void doALURegister(const Instruction instr) {
             case ALUOpReg::SLT:
                 std::printf("[%08X:%08X] slt %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
                 break;
+            case ALUOpReg::SRL:
+                std::printf("[%08X:%08X] srl %s, %s, %u; %s = %016llX\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
+                break;
         }
     }
 }
@@ -514,6 +542,9 @@ void doBranch(const Instruction instr) {
             case BranchOp::BEQ:
                 std::printf("[%08X:%08X] beq %s, %s, %08llX; %s = %016llX, %s = %016llX\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
                 break;
+            case BranchOp::BGTZ:
+                std::printf("[%08X:%08X] bgtz %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
+                break;
             case BranchOp::BNE:
                 std::printf("[%08X:%08X] bne %s, %s, %08llX; %s = %016llX, %s = %016llX\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
                 break;
@@ -523,6 +554,9 @@ void doBranch(const Instruction instr) {
     switch (op) {
         case BranchOp::BEQ:
             branch(target, rsData == rtData, Register::R0, false);
+            break;
+        case BranchOp::BGTZ:
+            branch(target, (i64)rsData > 0, Register::R0, false);
             break;
         case BranchOp::BNE:
             branch(target, rsData != rtData, Register::R0, false);
@@ -595,6 +629,9 @@ void doLoadStore(const Instruction instr) {
         const u64 data = get(rt);
 
         switch (op) {
+            case LoadStoreOp::LB:
+                std::printf("[%08X:%08X] lb %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
+                break;
             case LoadStoreOp::LBU:
                 std::printf("[%08X:%08X] lbu %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
                 break;
@@ -623,6 +660,9 @@ void doLoadStore(const Instruction instr) {
     }
 
     switch (op) {
+        case LoadStoreOp::LB:
+            set(rt, (u64)(i8)read<u8>(vaddr));
+            break;
         case LoadStoreOp::LBU:
             set(rt, (u64)read<u8>(vaddr));
             break;
@@ -704,6 +744,9 @@ void doInstruction() {
                     case SpecialOpcode::SLL:
                         doALURegister<ALUOpReg::SLL>(instr);
                         break;
+                    case SpecialOpcode::SRL:
+                        doALURegister<ALUOpReg::SRL>(instr);
+                        break;
                     case SpecialOpcode::JR:
                         doJump<JumpOp::JR>(instr);
                         break;
@@ -738,6 +781,12 @@ void doInstruction() {
         case Opcode::BNE:
             doBranch<BranchOp::BNE>(instr);
             break;
+        case Opcode::BGTZ:
+            doBranch<BranchOp::BGTZ>(instr);
+            break;
+        case Opcode::ADDI:
+            doALUImmediate<ALUOpImm::ADDI>(instr);
+            break;
         case Opcode::ADDIU:
             doALUImmediate<ALUOpImm::ADDIU>(instr);
             break;
@@ -749,6 +798,9 @@ void doInstruction() {
             break;
         case Opcode::LUI:
             doALUImmediate<ALUOpImm::LUI>(instr);
+            break;
+        case Opcode::LB:
+            doLoadStore<LoadStoreOp::LB>(instr);
             break;
         case Opcode::LH:
             doLoadStore<LoadStoreOp::LH>(instr);
@@ -788,6 +840,14 @@ void run(const i64 cycles) {
 
         advanceDelaySlot();
         doInstruction();
+
+        if ((getPC<true>() == 0xFFFFFFFFA0001230) || (getPC<true>() == 0xFFFFFFFFA000117C)) {
+            char msg[256];
+            std::memset(msg, 0, sizeof(msg));
+            std::memcpy(msg, (const char *)sys::memory::getPointer(translateAddress(get(Register::A2))), get(Register::T0));
+
+            std::printf("%s\n", msg);
+        }
     }
 }
 
