@@ -69,12 +69,17 @@ namespace Opcode {
     enum : u32 {
         ORI = 0x0D,
         LUI = 0x0F,
+        SW = 0x2B,
     };
 }
 
 enum class ALUOpImm {
     LUI,
     ORI,
+};
+
+enum class LoadStoreOp {
+    SW,
 };
 
 // CPU instruction
@@ -205,8 +210,9 @@ void advancePC() {
 }
 
 u64 translateAddress(const u64 vaddr) {
-    if ((vaddr < AddressRangeBase::KSEG0) || (vaddr >= AddressRangeBase::KSSEG)) {
-        PLOG_FATAL << "Unimplemented access to TLB mapped region (address = " << std::hex << vaddr << ")";
+    const u32 vaddrMasked = vaddr;
+    if ((vaddrMasked < AddressRangeBase::KSEG0) || (vaddrMasked >= AddressRangeBase::KSSEG)) {
+        PLOG_FATAL << "Unimplemented access to TLB mapped region (address = " << std::hex << vaddrMasked << ")";
 
         exit(0);
     }
@@ -331,6 +337,43 @@ void doALUImmediate(const Instruction instr) {
     }
 }
 
+template<LoadStoreOp op>
+void doLoadStore(const Instruction instr) {
+    const u32 base = instr.iType.rs;
+    const u32 rt = instr.iType.rt;
+
+    const u32 imm = instr.iType.immediate;
+    const u64 offset = (i16)imm;
+
+    const u64 vaddr = get(base) + offset;
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const char *baseName = REG_NAMES[base];
+        const char *rtName = REG_NAMES[rt];
+
+        const u32 pc = getPC<true>();
+
+        const u64 data = get(rt);
+
+        switch (op) {
+            case LoadStoreOp::SW:
+                std::printf("[%08X:%08X] sw %s, %04X(%s); [%08llX] = %08X\n", pc, instr.raw, rtName, imm, baseName, vaddr, (u32)data);
+                break;
+        }
+    }
+
+    switch (op) {
+        case LoadStoreOp::SW:
+            if (!isAlignedAddress<u32>(vaddr)) {
+                PLOG_FATAL << "Unaligned SW address " << std::hex << vaddr;
+
+                exit(0);
+            }
+
+            write(vaddr, (u32)get(rt));
+            break;
+    }
+}
 
 void doInstruction() {
     Instruction instr;
@@ -343,6 +386,9 @@ void doInstruction() {
             break;
         case Opcode::LUI:
             doALUImmediate<ALUOpImm::LUI>(instr);
+            break;
+        case Opcode::SW:
+            doLoadStore<LoadStoreOp::SW>(instr);
             break;
         default:
             PLOG_FATAL << "Unrecognized opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
