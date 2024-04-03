@@ -29,6 +29,7 @@ set(SOURCES
 
 # Set header files
 set(HEADERS
+    include/common/types.hpp
     include/sys/emulator.hpp
 )
 
