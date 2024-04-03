@@ -7,16 +7,26 @@
 
 #include <plog/Log.h>
 
+#include "sys/memory.hpp"
+
 namespace sys::emulator {
+
+constexpr bool IS_FAST_BOOT = true;
 
 void init(const char *romPath) {
     PLOG_INFO << "ROM path = " << romPath;
+
+    sys::memory::init(romPath);
 }
 
-void deinit() {}
+void deinit() {
+    sys::memory::deinit();
+}
 
 void run() {}
 
-void reset() {}
+void reset() {
+    sys::memory::reset(IS_FAST_BOOT);
+}
 
 }

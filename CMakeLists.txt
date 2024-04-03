@@ -25,12 +25,14 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/external/plog)
 set(SOURCES
     src/main.cpp
     src/sys/emulator.cpp
+    src/sys/memory.cpp
 )
 
 # Set header files
 set(HEADERS
     include/common/types.hpp
     include/sys/emulator.hpp
+    include/sys/memory.hpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
