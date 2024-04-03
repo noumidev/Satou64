@@ -18,7 +18,7 @@
 
 namespace hw::cpu {
 
-constexpr bool ENABLE_DISASSEMBLER = true;
+constexpr bool ENABLE_DISASSEMBLER = false;
 
 constexpr u32 ADDR_RESET_VECTOR = 0xBFC00000;
 constexpr u32 ADDR_FAST_BOOT = 0xA4000040;
@@ -78,6 +78,7 @@ namespace Opcode {
         LUI = 0x0F,
         LH = 0x21,
         LW = 0x23,
+        LBU = 0x24,
         LHU = 0x25,
         SH = 0x29,
         SW = 0x2B,
@@ -92,6 +93,7 @@ namespace SpecialOpcode {
         JR = 0x08,
         JALR = 0x09,
         ADD = 0x20,
+        ADDU = 0x21,
         SLT = 0x2A,
     };
 };
@@ -105,6 +107,7 @@ enum class ALUOpImm {
 
 enum class ALUOpReg {
     ADD,
+    ADDU,
     SLL,
     SLT,
 };
@@ -122,6 +125,7 @@ enum class JumpOp {
 };
 
 enum class LoadStoreOp {
+    LBU,
     LD,
     LH,
     LHU,
@@ -394,7 +398,7 @@ void doALUImmediate(const Instruction instr) {
 
     switch (op) {
         case ALUOpImm::ADDIU:
-            set(rt, get(rs) + (u64)imm);
+            set(rt, get(rs) + (u64)(i16)imm);
             break;
         case ALUOpImm::ANDI:
             set(rt, get(rs) & (u64)imm);
@@ -446,6 +450,9 @@ void doALURegister(const Instruction instr) {
             // TODO: overflow check
             set(rd, (u32)(rsData + rtData));
             break;
+        case ALUOpReg::ADDU:
+            set(rd, (u32)(rsData + rtData));
+            break;
         case ALUOpReg::SLL:
             set(rd, (u32)(rtData << sa));
             break;
@@ -466,6 +473,9 @@ void doALURegister(const Instruction instr) {
         switch (op) {
             case ALUOpReg::ADD:
                 std::printf("[%08X:%08X] add %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
+                break;
+            case ALUOpReg::ADDU:
+                std::printf("[%08X:%08X] addu %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
                 break;
             case ALUOpReg::SLL:
                 if (rd == Register::R0) {
@@ -585,6 +595,9 @@ void doLoadStore(const Instruction instr) {
         const u64 data = get(rt);
 
         switch (op) {
+            case LoadStoreOp::LBU:
+                std::printf("[%08X:%08X] lbu %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
+                break;
             case LoadStoreOp::LD:
                 std::printf("[%08X:%08X] ld %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
                 break;
@@ -610,6 +623,9 @@ void doLoadStore(const Instruction instr) {
     }
 
     switch (op) {
+        case LoadStoreOp::LBU:
+            set(rt, (u64)read<u8>(vaddr));
+            break;
         case LoadStoreOp::LD:
             if (!isAlignedAddress<u64>(vaddr)) {
                 PLOG_FATAL << "Unaligned LD address " << std::hex << vaddr;
@@ -697,6 +713,9 @@ void doInstruction() {
                     case SpecialOpcode::ADD:
                         doALURegister<ALUOpReg::ADD>(instr);
                         break;
+                    case SpecialOpcode::ADDU:
+                        doALURegister<ALUOpReg::ADDU>(instr);
+                        break;
                     case SpecialOpcode::SLT:
                         doALURegister<ALUOpReg::SLT>(instr);
                         break;
@@ -736,6 +755,9 @@ void doInstruction() {
             break;
         case Opcode::LW:
             doLoadStore<LoadStoreOp::LW>(instr);
+            break;
+        case Opcode::LBU:
+            doLoadStore<LoadStoreOp::LBU>(instr);
             break;
         case Opcode::LHU:
             doLoadStore<LoadStoreOp::LHU>(instr);
