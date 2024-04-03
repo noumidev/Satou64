@@ -8,6 +8,7 @@
 #include <plog/Log.h>
 
 #include "hw/pi.hpp"
+#include "hw/vi.hpp"
 #include "hw/cpu/cpu.hpp"
 
 #include "sys/memory.hpp"
@@ -23,6 +24,7 @@ void init(const char *romPath) {
 
     hw::cpu::init();
     hw::pi::init();
+    hw::vi::init();
 }
 
 void deinit() {
@@ -30,6 +32,7 @@ void deinit() {
 
     hw::cpu::deinit();
     hw::pi::deinit();
+    hw::vi::deinit();
 }
 
 void run() {
@@ -43,6 +46,7 @@ void reset() {
 
     hw::cpu::reset(IS_FAST_BOOT);
     hw::pi::reset();
+    hw::vi::reset();
 }
 
 }

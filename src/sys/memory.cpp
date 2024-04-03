@@ -15,6 +15,7 @@
 #include <plog/Log.h>
 
 #include "hw/pi.hpp"
+#include "hw/vi.hpp"
 
 namespace sys::memory {
 
@@ -212,6 +213,8 @@ u32 readIO(const u64 ioaddr) {
     const u64 iopage = addressToIOPage(ioaddr);
 
     switch (iopage) {
+        case addressToIOPage(hw::vi::IORegister::IOBase):
+            return hw::vi::readIO(ioaddr);
         case addressToIOPage(hw::pi::IORegister::IOBase):
             return hw::pi::readIO(ioaddr);
         default:
@@ -316,6 +319,8 @@ void writeIO(const u64 ioaddr, const u32 data) {
     const u64 iopage = addressToIOPage(ioaddr);
 
     switch (iopage) {
+        case addressToIOPage(hw::vi::IORegister::IOBase):
+            return hw::vi::writeIO(ioaddr, data);
         case addressToIOPage(hw::pi::IORegister::IOBase):
             return hw::pi::writeIO(ioaddr, data);
         default:
