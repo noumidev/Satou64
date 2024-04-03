@@ -69,6 +69,7 @@ namespace Opcode {
     enum : u32 {
         SPECIAL = 0x00,
         J = 0x02,
+        JAL = 0x03,
         BEQ = 0x04,
         BNE = 0x05,
         ADDIU = 0x09,
@@ -78,6 +79,7 @@ namespace Opcode {
         LH = 0x21,
         LW = 0x23,
         LHU = 0x25,
+        SH = 0x29,
         SW = 0x2B,
         LD = 0x37,
         SD = 0x3F,
@@ -114,6 +116,7 @@ enum class BranchOp {
 
 enum class JumpOp {
     J,
+    JAL,
     JALR,
     JR,
 };
@@ -124,6 +127,7 @@ enum class LoadStoreOp {
     LHU,
     LW,
     SD,
+    SH,
     SW,
 };
 
@@ -536,8 +540,11 @@ void doJump(const Instruction instr) {
             case JumpOp::J:
                 std::printf("[%08X:%08X] j %08X\n", pc, instr.raw, (u32)target);
                 break;
+            case JumpOp::JAL:
+                std::printf("[%08X:%08X] jal %08X; ra = %08llX\n", pc, instr.raw, (u32)target, getPC<false>());
+                break;
             case JumpOp::JALR:
-                std::printf("[%08X:%08X] jalr %s, %s; PC = %08llX, RA = %08llX\n", pc, instr.raw, rdName, rsName, target, getPC<false>());
+                std::printf("[%08X:%08X] jalr %s, %s; PC = %08llX, %s = %08llX\n", pc, instr.raw, rdName, rsName, target, rdName, getPC<false>());
                 break;
             case JumpOp::JR:
                 std::printf("[%08X:%08X] jr %s; PC = %08llX\n", pc, instr.raw, rsName, target);
@@ -549,6 +556,9 @@ void doJump(const Instruction instr) {
         case JumpOp::J:
         case JumpOp::JR:
             branch(target, true, Register::R0, false);
+            break;
+        case JumpOp::JAL:
+            branch(target, true, Register::RA, false);
             break;
         case JumpOp::JALR:
             branch(target, true, rd, false);
@@ -588,10 +598,13 @@ void doLoadStore(const Instruction instr) {
                 std::printf("[%08X:%08X] lw %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
                 break;
             case LoadStoreOp::SD:
-                std::printf("[%08X:%08X] sd %s, %04X(%s); [%08llX] = %08X\n", pc, instr.raw, rtName, imm, baseName, vaddr, (u32)data);
+                std::printf("[%08X:%08X] sd %s, %04X(%s); [%08llX] = %016llX\n", pc, instr.raw, rtName, imm, baseName, vaddr, data);
+                break;
+            case LoadStoreOp::SH:
+                std::printf("[%08X:%08X] sw %s, %04X(%s); [%08llX] = %04X\n", pc, instr.raw, rtName, imm, baseName, vaddr, (u16)data);
                 break;
             case LoadStoreOp::SW:
-                std::printf("[%08X:%08X] sw %s, %04X(%s); [%08llX] = %08llX\n", pc, instr.raw, rtName, imm, baseName, vaddr, data);
+                std::printf("[%08X:%08X] sw %s, %04X(%s); [%08llX] = %08X\n", pc, instr.raw, rtName, imm, baseName, vaddr, (u32)data);
                 break;
         }
     }
@@ -642,6 +655,15 @@ void doLoadStore(const Instruction instr) {
 
             write(vaddr, get(rt));
             break;
+        case LoadStoreOp::SH:
+            if (!isAlignedAddress<u32>(vaddr)) {
+                PLOG_FATAL << "Unaligned SH address " << std::hex << vaddr;
+
+                exit(0);
+            }
+
+            write(vaddr, (u16)get(rt));
+            break;
         case LoadStoreOp::SW:
             if (!isAlignedAddress<u32>(vaddr)) {
                 PLOG_FATAL << "Unaligned SW address " << std::hex << vaddr;
@@ -688,6 +710,9 @@ void doInstruction() {
         case Opcode::J:
             doJump<JumpOp::J>(instr);
             break;
+        case Opcode::JAL:
+            doJump<JumpOp::JAL>(instr);
+            break;
         case Opcode::BEQ:
             doBranch<BranchOp::BEQ>(instr);
             break;
@@ -714,6 +739,9 @@ void doInstruction() {
             break;
         case Opcode::LHU:
             doLoadStore<LoadStoreOp::LHU>(instr);
+            break;
+        case Opcode::SH:
+            doLoadStore<LoadStoreOp::SH>(instr);
             break;
         case Opcode::SW:
             doLoadStore<LoadStoreOp::SW>(instr);
