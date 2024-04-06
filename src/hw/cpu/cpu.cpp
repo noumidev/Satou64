@@ -97,12 +97,16 @@ namespace SpecialOpcode {
     enum : u32 {
         SLL = 0x00,
         SRL = 0x02,
+        SRA = 0x03,
         SLLV = 0x04,
+        SRLV = 0x06,
+        SRAV = 0x07,
         JR = 0x08,
         JALR = 0x09,
         DSLLV = 0x14,
         ADD = 0x20,
         ADDU = 0x21,
+        SUBU = 0x23,
         AND = 0x24,
         OR = 0x25,
         NOR = 0x27,
@@ -139,7 +143,11 @@ enum class ALUOpReg {
     SLLV,
     SLT,
     SLTU,
+    SRA,
+    SRAV,
     SRL,
+    SRLV,
+    SUBU,
 };
 
 enum class BranchOp {
@@ -548,8 +556,20 @@ void doALURegister(const Instruction instr) {
         case ALUOpReg::SLTU:
             set(rd, (u64)(rsData < rtData));
             break;
+        case ALUOpReg::SRA:
+            set(rd, (u32)((i64)rtData >> sa));
+            break;
+        case ALUOpReg::SRAV:
+            set(rd, (u32)((i64)rtData >> (rsData & 0x1F)));
+            break;
         case ALUOpReg::SRL:
-            set(rd, (u32)(rtData >> sa));
+            set(rd, (u32)rtData >> sa);
+            break;
+        case ALUOpReg::SRLV:
+            set(rd, (u32)rtData >> (rsData & 0x1F));
+            break;
+        case ALUOpReg::SUBU:
+            set(rd, (u32)(rsData - rtData));
             break;
     }
 
@@ -606,8 +626,20 @@ void doALURegister(const Instruction instr) {
             case ALUOpReg::SLTU:
                 std::printf("[%08X:%08X] sltu %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
                 break;
+            case ALUOpReg::SRA:
+                std::printf("[%08X:%08X] sra %s, %s, %u; %s = %016llX\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
+                break;
+            case ALUOpReg::SRAV:
+                std::printf("[%08X:%08X] srav %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
+                break;
             case ALUOpReg::SRL:
                 std::printf("[%08X:%08X] srl %s, %s, %u; %s = %016llX\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
+                break;
+            case ALUOpReg::SRLV:
+                std::printf("[%08X:%08X] srlv %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
+                break;
+            case ALUOpReg::SUBU:
+                std::printf("[%08X:%08X] subu %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
                 break;
         }
     }
@@ -841,8 +873,17 @@ void doInstruction() {
                     case SpecialOpcode::SRL:
                         doALURegister<ALUOpReg::SRL>(instr);
                         break;
+                    case SpecialOpcode::SRA:
+                        doALURegister<ALUOpReg::SRA>(instr);
+                        break;
                     case SpecialOpcode::SLLV:
                         doALURegister<ALUOpReg::SLLV>(instr);
+                        break;
+                    case SpecialOpcode::SRLV:
+                        doALURegister<ALUOpReg::SRLV>(instr);
+                        break;
+                    case SpecialOpcode::SRAV:
+                        doALURegister<ALUOpReg::SRAV>(instr);
                         break;
                     case SpecialOpcode::JR:
                         doJump<JumpOp::JR>(instr);
@@ -858,6 +899,9 @@ void doInstruction() {
                         break;
                     case SpecialOpcode::ADDU:
                         doALURegister<ALUOpReg::ADDU>(instr);
+                        break;
+                    case SpecialOpcode::SUBU:
+                        doALURegister<ALUOpReg::SUBU>(instr);
                         break;
                     case SpecialOpcode::AND:
                         doALURegister<ALUOpReg::AND>(instr);
