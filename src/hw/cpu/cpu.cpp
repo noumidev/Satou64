@@ -262,12 +262,6 @@ void set(const u32 idx, const u64 data) {
 template<bool isBranch>
 void setPC(const u64 addr) {
     if constexpr (isBranch) {
-        if (addr == getPC<true>()) {
-            PLOG_FATAL << "Infinite loop (address = " << std::hex << addr << ")";
-
-            exit(0);
-        }
-
         regFile.npc = addr;
     } else {
         regFile.pc = addr;
@@ -840,14 +834,6 @@ void run(const i64 cycles) {
 
         advanceDelaySlot();
         doInstruction();
-
-        if ((getPC<true>() == 0xFFFFFFFFA0001230) || (getPC<true>() == 0xFFFFFFFFA000117C)) {
-            char msg[256];
-            std::memset(msg, 0, sizeof(msg));
-            std::memcpy(msg, (const char *)sys::memory::getPointer(translateAddress(get(Register::A2))), get(Register::T0));
-
-            std::printf("%s\n", msg);
-        }
     }
 }
 
