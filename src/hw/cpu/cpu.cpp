@@ -258,6 +258,12 @@ void reset(const bool isFastBoot) {
     setPC<false>(ADDR_RESET_VECTOR);
     if (isFastBoot) {
         setPC<false>(ADDR_FAST_BOOT);
+
+        // Simulate PIF ROM (https://n64.readthedocs.io/index.html#simulating-the-pif-rom)
+        regFile.regs[Register::T3] = 0xFFFFFFFFA4000040;
+        regFile.regs[Register::S4] = 1;
+        regFile.regs[Register::S6] = 0x3F;
+        regFile.regs[Register::SP] = 0xFFFFFFFFA4001FF0;
     }
 
     inDelaySlot[0] = inDelaySlot[1] = false;
