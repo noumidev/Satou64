@@ -15,6 +15,7 @@
 #include <plog/Log.h>
 
 #include "hw/pi.hpp"
+#include "hw/ri.hpp"
 #include "hw/vi.hpp"
 
 namespace sys::memory {
@@ -27,6 +28,7 @@ std::array<u8 *, NUM_PAGES> pageTable;
 // Memory arrays
 
 std::array<u8, MemorySize::RSP_DMEM> dmem;
+std::array<u8, MemorySize::RSP_IMEM> imem;
 std::array<u8, MemorySize::RDRAM> rdram;
 std::array<u8, PAGE_SIZE> pif;
 
@@ -53,6 +55,7 @@ void init(const char *romPath) {
     // Map all memory regions
     map(MemoryBase::RDRAM, MemorySize::RDRAM, rdram.data());
     map(MemoryBase::RSP_DMEM, MemorySize::RSP_DMEM, dmem.data());
+    map(MemoryBase::RSP_IMEM, MemorySize::RSP_IMEM, imem.data());
     map(MemoryBase::CART_DOM1_A2, rom.size(), rom.data());
     map(MemoryBase::PIF_RAM, PAGE_SIZE, pif.data());
 }
@@ -217,6 +220,8 @@ u32 readIO(const u64 ioaddr) {
             return hw::vi::readIO(ioaddr);
         case addressToIOPage(hw::pi::IORegister::IOBase):
             return hw::pi::readIO(ioaddr);
+        case addressToIOPage(hw::ri::IORegister::IOBase):
+            return hw::ri::readIO(ioaddr);
         default:
             PLOG_FATAL << "Unrecognized IO read (address = " << std::hex << ioaddr << ")";
 
@@ -323,6 +328,8 @@ void writeIO(const u64 ioaddr, const u32 data) {
             return hw::vi::writeIO(ioaddr, data);
         case addressToIOPage(hw::pi::IORegister::IOBase):
             return hw::pi::writeIO(ioaddr, data);
+        case addressToIOPage(hw::ri::IORegister::IOBase):
+            return hw::ri::writeIO(ioaddr, data);
         default:
             PLOG_FATAL << "Unrecognized IO write (address = " << std::hex << ioaddr << ", data = " << data << ")";
 

@@ -10,6 +10,7 @@
 #include <SDL2/SDL.h>
 
 #include "hw/pi.hpp"
+#include "hw/ri.hpp"
 #include "hw/vi.hpp"
 #include "hw/cpu/cpu.hpp"
 
@@ -33,6 +34,7 @@ void init(const char *romPath) {
 
     hw::cpu::init();
     hw::pi::init();
+    hw::ri::init();
     hw::vi::init();
 }
 
@@ -41,6 +43,7 @@ void deinit() {
 
     hw::cpu::deinit();
     hw::pi::deinit();
+    hw::ri::deinit();
     hw::vi::deinit();
 
     renderer::deinit();
@@ -71,6 +74,7 @@ void reset() {
 
     hw::cpu::reset(IS_FAST_BOOT);
     hw::pi::reset();
+    hw::ri::reset();
     hw::vi::reset();
 }
 
