@@ -14,6 +14,8 @@
 
 #include <plog/Log.h>
 
+#include "hw/cpu/cop0.hpp"
+
 #include "sys/memory.hpp"
 
 namespace hw::cpu {
@@ -81,6 +83,7 @@ namespace Opcode {
         ORI = 0x0D,
         XORI = 0x0E,
         LUI = 0x0F,
+        COP0 = 0x10,
         BEQL = 0x14,
         BNEL = 0x15,
         DADDI = 0x18,
@@ -123,6 +126,12 @@ namespace SpecialOpcode {
         DSRA32 = 0x3F,
     };
 };
+
+namespace CoprocessorOpcode {
+    enum : u32 {
+        MT = 0x04,
+    };
+}
 
 enum class ALUOpImm {
     ADDI,
@@ -229,13 +238,19 @@ RegisterFile regFile;
 
 bool inDelaySlot[2];
 
-void init() {}
+void init() {
+    cop0::init();
+}
 
-void deinit() {}
+void deinit() {
+    cop0::deinit();
+}
 
 void run() {}
 
 void reset(const bool isFastBoot) {
+    cop0::reset();
+
     // Clear register file
     std::memset(&regFile, 0, sizeof(RegisterFile));
 
@@ -731,6 +746,47 @@ void doBranch(const Instruction instr) {
     }
 }
 
+template<int coprocessor>
+void doCoprocessor(const Instruction instr) {
+    if constexpr (coprocessor != 0) {
+        PLOG_FATAL << "Unrecognized coprocessor " << coprocessor;
+        
+        exit(0);
+    }
+
+    const u32 rd = instr.rType.rd;
+    const u32 rt = instr.rType.rt;
+
+    const u64 rtData = get(rt);
+
+    const u32 op = instr.rType.rs;
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const char *rtName = REG_NAMES[rt];
+
+        const u32 pc = getPC<true>();
+
+        switch (op) {
+            case CoprocessorOpcode::MT:
+                std::printf("[%08X:%08X] mtc%d %s, %u; %u = %08X\n", pc, instr.raw, coprocessor, rtName, rd, rd, rtData);
+                break;
+        default:
+            PLOG_FATAL << "Unrecognized coprocessor opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+
+            exit(0);
+        }
+    }
+
+    switch (op) {
+        case CoprocessorOpcode::MT:
+            cop0::set(rd, (u32)rtData);
+            break;
+        default:
+            PLOG_FATAL << "Unrecognized coprocessor opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+
+            exit(0);
+    }
+}
+
 template<JumpOp op>
 void doJump(const Instruction instr) {
     const u32 rd = instr.rType.rd;
@@ -1028,6 +1084,9 @@ void doInstruction() {
             break;
         case Opcode::LUI:
             doALUImmediate<ALUOpImm::LUI>(instr);
+            break;
+        case Opcode::COP0:
+            doCoprocessor<0>(instr);
             break;
         case Opcode::BEQL:
             doBranch<BranchOp::BEQL>(instr);
