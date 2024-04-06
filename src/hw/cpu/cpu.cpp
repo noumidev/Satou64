@@ -75,6 +75,8 @@ namespace Opcode {
         BGTZ = 0x07,
         ADDI = 0x08,
         ADDIU = 0x09,
+        SLTI = 0x0A,
+        SLTIU = 0x0B,
         ANDI = 0x0C,
         ORI = 0x0D,
         LUI = 0x0F,
@@ -95,6 +97,7 @@ namespace SpecialOpcode {
     enum : u32 {
         SLL = 0x00,
         SRL = 0x02,
+        SLLV = 0x04,
         JR = 0x08,
         JALR = 0x09,
         DSLLV = 0x14,
@@ -104,6 +107,7 @@ namespace SpecialOpcode {
         OR = 0x25,
         NOR = 0x27,
         SLT = 0x2A,
+        SLTU = 0x2B,
         DSLL = 0x38,
         DSLL32 = 0x3C,
         DSRA32 = 0x3F,
@@ -117,6 +121,8 @@ enum class ALUOpImm {
     DADDIU,
     LUI,
     ORI,
+    SLTI,
+    SLTIU,
 };
 
 enum class ALUOpReg {
@@ -130,7 +136,9 @@ enum class ALUOpReg {
     NOR,
     OR,
     SLL,
+    SLLV,
     SLT,
+    SLTU,
     SRL,
 };
 
@@ -420,26 +428,34 @@ void doALUImmediate(const Instruction instr) {
 
     const u32 imm = instr.iType.immediate;
 
+    const u64 rsData = get(rs);
+
     switch (op) {
         case ALUOpImm::ADDI:
             // TODO: overflow check
 
-            set(rt, (u32)(get(rs) + (u64)(i16)imm));
+            set(rt, (u32)(rsData + (u64)(i16)imm));
             break;
         case ALUOpImm::ADDIU:
-            set(rt, (u32)(get(rs) + (u64)(i16)imm));
+            set(rt, (u32)(rsData + (u64)(i16)imm));
             break;
         case ALUOpImm::ANDI:
-            set(rt, get(rs) & (u64)imm);
+            set(rt, rsData & (u64)imm);
             break;
         case ALUOpImm::DADDIU:
-            set(rt, get(rs) + (u64)(i16)imm);
-            break;
-        case ALUOpImm::ORI:
-            set(rt, get(rs) | (u64)imm);
+            set(rt, rsData + (u64)(i16)imm);
             break;
         case ALUOpImm::LUI:
             set(rt, imm << 16);
+            break;
+        case ALUOpImm::ORI:
+            set(rt, rsData | (u64)imm);
+            break;
+        case ALUOpImm::SLTI:
+            set(rt, (u64)((i64)rsData < (i64)(i16)imm));
+            break;
+        case ALUOpImm::SLTIU:
+            set(rt, (u64)(rsData < (u64)(i16)imm));
             break;
     }
 
@@ -449,24 +465,32 @@ void doALUImmediate(const Instruction instr) {
 
         const u32 pc = getPC<true>();
 
+        const u64 rtData = get(rt);
+
         switch (op) {
             case ALUOpImm::ADDI:
-                std::printf("[%08X:%08X] addiu %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, get(rt));
+                std::printf("[%08X:%08X] addiu %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, rtData);
                 break;
             case ALUOpImm::ADDIU:
-                std::printf("[%08X:%08X] addiu %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, get(rt));
+                std::printf("[%08X:%08X] addiu %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, rtData);
                 break;
             case ALUOpImm::ANDI:
-                std::printf("[%08X:%08X] andi %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, get(rt));
+                std::printf("[%08X:%08X] andi %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, rtData);
                 break;
             case ALUOpImm::DADDIU:
-                std::printf("[%08X:%08X] daddiu %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, get(rt));
+                std::printf("[%08X:%08X] daddiu %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, rtData);
                 break;
             case ALUOpImm::LUI:
-                std::printf("[%08X:%08X] lui %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, imm, rtName, get(rt));
+                std::printf("[%08X:%08X] lui %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, imm, rtName, rtData);
                 break;
             case ALUOpImm::ORI:
-                std::printf("[%08X:%08X] ori %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, get(rt));
+                std::printf("[%08X:%08X] ori %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, rtData);
+                break;
+            case ALUOpImm::SLTI:
+                std::printf("[%08X:%08X] slti %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, rtData);
+                break;
+            case ALUOpImm::SLTIU:
+                std::printf("[%08X:%08X] sltiu %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, rtData);
                 break;
         }
     }
@@ -515,8 +539,14 @@ void doALURegister(const Instruction instr) {
         case ALUOpReg::SLL:
             set(rd, (u32)(rtData << sa));
             break;
+        case ALUOpReg::SLLV:
+            set(rd, (u32)(rtData << (rsData & 0x1F)));
+            break;
         case ALUOpReg::SLT:
             set(rd, (u64)((i64)rsData < (i64)rtData));
+            break;
+        case ALUOpReg::SLTU:
+            set(rd, (u64)(rsData < rtData));
             break;
         case ALUOpReg::SRL:
             set(rd, (u32)(rtData >> sa));
@@ -567,8 +597,14 @@ void doALURegister(const Instruction instr) {
                     std::printf("[%08X:%08X] sll %s, %s, %u; %s = %016llX\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
                 }
                 break;
+            case ALUOpReg::SLLV:
+                std::printf("[%08X:%08X] sllv %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
+                break;
             case ALUOpReg::SLT:
                 std::printf("[%08X:%08X] slt %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
+                break;
+            case ALUOpReg::SLTU:
+                std::printf("[%08X:%08X] sltu %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
                 break;
             case ALUOpReg::SRL:
                 std::printf("[%08X:%08X] srl %s, %s, %u; %s = %016llX\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
@@ -805,6 +841,9 @@ void doInstruction() {
                     case SpecialOpcode::SRL:
                         doALURegister<ALUOpReg::SRL>(instr);
                         break;
+                    case SpecialOpcode::SLLV:
+                        doALURegister<ALUOpReg::SLLV>(instr);
+                        break;
                     case SpecialOpcode::JR:
                         doJump<JumpOp::JR>(instr);
                         break;
@@ -831,6 +870,9 @@ void doInstruction() {
                         break;
                     case SpecialOpcode::SLT:
                         doALURegister<ALUOpReg::SLT>(instr);
+                        break;
+                    case SpecialOpcode::SLTU:
+                        doALURegister<ALUOpReg::SLTU>(instr);
                         break;
                     case SpecialOpcode::DSLL:
                         doALURegister<ALUOpReg::DSLL>(instr);
@@ -868,6 +910,12 @@ void doInstruction() {
             break;
         case Opcode::ADDIU:
             doALUImmediate<ALUOpImm::ADDIU>(instr);
+            break;
+        case Opcode::SLTI:
+            doALUImmediate<ALUOpImm::SLTI>(instr);
+            break;
+        case Opcode::SLTIU:
+            doALUImmediate<ALUOpImm::SLTIU>(instr);
             break;
         case Opcode::ANDI:
             doALUImmediate<ALUOpImm::ANDI>(instr);
