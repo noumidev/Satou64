@@ -13,7 +13,10 @@ namespace hw::ri {
 namespace IORegister {
     enum : u64 {
         IOBase = 0x4700000,
-        MODE = IOBase + 0x00C,
+        MODE = IOBase + 0x00,
+        CONFIG = IOBase + 0x04,
+        CURRENTLOAD = IOBase + 0x08,
+        SELECT = IOBase + 0x0C,
     };
 }
 
