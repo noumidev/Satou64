@@ -14,6 +14,8 @@ void deinit();
 
 void reset();
 
+void changeResolution(const u32 width);
+
 void drawFrameBuffer(const u64 paddr, const u32 format);
 
 }

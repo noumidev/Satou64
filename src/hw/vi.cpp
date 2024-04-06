@@ -11,6 +11,8 @@
 
 #include <plog/Log.h>
 
+#include "renderer/renderer.hpp"
+
 namespace hw::vi {
 
 union CONTROL {
@@ -200,6 +202,8 @@ void writeIO(const u64 ioaddr, const u32 data) {
             PLOG_INFO << "WIDTH write (data = " << std::hex << data << ")";
 
             regs.width.raw = data;
+
+            renderer::changeResolution(regs.width.width);
             break;
         case IORegister::INTR:
             PLOG_INFO << "INTR write (data = " << std::hex << data << ")";

@@ -5,9 +5,9 @@
 
 #include "renderer/renderer.hpp"
 
-#include <array>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 #include <plog/Log.h>
 
@@ -17,8 +17,8 @@
 
 namespace renderer {
 
-constexpr int DEFAULT_WIDTH = 320;
-constexpr int DEFAULT_HEIGHT = 256;
+constexpr int DEFAULT_WIDTH = 640;
+constexpr int DEFAULT_HEIGHT = 512;
 
 namespace Format {
     enum : u32 {
@@ -33,24 +33,29 @@ struct Screen {
     SDL_Renderer *renderer;
     SDL_Window *window;
     SDL_Texture *texture;
+
+    u32 width, height;
 };
 
 Screen screen;
 
 void init() {
+    screen.width = DEFAULT_WIDTH;
+    screen.height = DEFAULT_HEIGHT;
+
     // Initialize SDL2
     SDL_Init(SDL_INIT_VIDEO);
     SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
 
     // Create window and renderer
     SDL_CreateWindowAndRenderer(DEFAULT_WIDTH, DEFAULT_HEIGHT, 0, &screen.window, &screen.renderer);
-    SDL_SetWindowSize(screen.window, 2 * DEFAULT_WIDTH, 2 * DEFAULT_HEIGHT);
-    SDL_RenderSetLogicalSize(screen.renderer, 2 * DEFAULT_WIDTH, 2 * DEFAULT_HEIGHT);
+    SDL_SetWindowSize(screen.window, DEFAULT_WIDTH, DEFAULT_HEIGHT);
+    SDL_RenderSetLogicalSize(screen.renderer, DEFAULT_WIDTH, DEFAULT_HEIGHT);
     SDL_SetWindowResizable(screen.window, SDL_FALSE);
     SDL_SetWindowTitle(screen.window, "Satou64");
 
     // Create texture
-    screen.texture = SDL_CreateTexture(screen.renderer, SDL_PIXELFORMAT_BGRX8888, SDL_TEXTUREACCESS_STREAMING, DEFAULT_WIDTH, DEFAULT_HEIGHT);
+    screen.texture = SDL_CreateTexture(screen.renderer, SDL_PIXELFORMAT_RGBX8888, SDL_TEXTUREACCESS_STREAMING, DEFAULT_WIDTH, DEFAULT_HEIGHT);
 }
 
 void deinit() {
@@ -63,8 +68,34 @@ void deinit() {
 
 void reset() {}
 
+void changeResolution(const u32 width) {
+    if (width == screen.width) {
+        return;
+    }
+
+    screen.width = width;
+    switch (width) {
+        case 320:
+            screen.height = 256;
+            break;
+        case 640:
+            screen.height = 512;
+            break;
+        default:
+            PLOG_FATAL << "Unrecognized screen width " << width;
+
+            exit(0);
+    }
+
+    SDL_DestroyTexture(screen.texture);
+    SDL_RenderSetLogicalSize(screen.renderer, screen.width, screen.height);
+
+    screen.texture = SDL_CreateTexture(screen.renderer, SDL_PIXELFORMAT_RGBX8888, SDL_TEXTUREACCESS_STREAMING, screen.width, screen.height);
+}
+
 void drawFrameBuffer(const u64 paddr, const u32 format) {
-    std::array<u32, DEFAULT_WIDTH * DEFAULT_HEIGHT> frameBuffer;
+    std::vector<u32> frameBuffer;
+    frameBuffer.resize(screen.width * screen.height);
 
     switch (format) {
         case Format::Blank:
@@ -86,7 +117,7 @@ void drawFrameBuffer(const u64 paddr, const u32 format) {
     }
 
     // Draw frame buffer
-    SDL_UpdateTexture(screen.texture, nullptr, frameBuffer.data(), 4 * DEFAULT_WIDTH);
+    SDL_UpdateTexture(screen.texture, nullptr, frameBuffer.data(), 4 * screen.width);
     SDL_RenderCopy(screen.renderer, screen.texture, nullptr, nullptr);
     SDL_RenderPresent(screen.renderer);
 }
