@@ -97,12 +97,16 @@ namespace SpecialOpcode {
         SRL = 0x02,
         JR = 0x08,
         JALR = 0x09,
+        DSLLV = 0x14,
         ADD = 0x20,
         ADDU = 0x21,
         AND = 0x24,
+        OR = 0x25,
+        NOR = 0x27,
         SLT = 0x2A,
         DSLL = 0x38,
         DSLL32 = 0x3C,
+        DSRA32 = 0x3F,
     };
 };
 
@@ -120,7 +124,11 @@ enum class ALUOpReg {
     ADDU,
     AND,
     DSLL,
+    DSLLV,
     DSLL32,
+    DSRA32,
+    NOR,
+    OR,
     SLL,
     SLT,
     SRL,
@@ -489,8 +497,20 @@ void doALURegister(const Instruction instr) {
         case ALUOpReg::DSLL:
             set(rd, rtData << sa);
             break;
+        case ALUOpReg::DSLLV:
+            set(rd, rtData << (rsData & 0x3F));
+            break;
         case ALUOpReg::DSLL32:
             set(rd, rtData << (sa + 32));
+            break;
+        case ALUOpReg::DSRA32:
+            set(rd, (u64)((i64)rtData >> (sa + 32)));
+            break;
+        case ALUOpReg::NOR:
+            set(rd, ~(rsData | rtData));
+            break;
+        case ALUOpReg::OR:
+            set(rd, rsData | rtData);
             break;
         case ALUOpReg::SLL:
             set(rd, (u32)(rtData << sa));
@@ -525,8 +545,20 @@ void doALURegister(const Instruction instr) {
             case ALUOpReg::DSLL:
                 std::printf("[%08X:%08X] dsll %s, %s, %u; %s = %016llX\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
                 break;
+            case ALUOpReg::DSLLV:
+                std::printf("[%08X:%08X] dsllv %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
+                break;
             case ALUOpReg::DSLL32:
                 std::printf("[%08X:%08X] dsll32 %s, %s, %u; %s = %016llX\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
+                break;
+            case ALUOpReg::DSRA32:
+                std::printf("[%08X:%08X] dsra32 %s, %s, %u; %s = %016llX\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
+                break;
+            case ALUOpReg::NOR:
+                std::printf("[%08X:%08X] nor %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
+                break;
+            case ALUOpReg::OR:
+                std::printf("[%08X:%08X] or %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
                 break;
             case ALUOpReg::SLL:
                 if (rd == Register::R0) {
@@ -779,6 +811,9 @@ void doInstruction() {
                     case SpecialOpcode::JALR:
                         doJump<JumpOp::JALR>(instr);
                         break;
+                    case SpecialOpcode::DSLLV:
+                        doALURegister<ALUOpReg::DSLLV>(instr);
+                        break;
                     case SpecialOpcode::ADD:
                         doALURegister<ALUOpReg::ADD>(instr);
                         break;
@@ -788,6 +823,12 @@ void doInstruction() {
                     case SpecialOpcode::AND:
                         doALURegister<ALUOpReg::AND>(instr);
                         break;
+                    case SpecialOpcode::OR:
+                        doALURegister<ALUOpReg::OR>(instr);
+                        break;
+                    case SpecialOpcode::NOR:
+                        doALURegister<ALUOpReg::NOR>(instr);
+                        break;
                     case SpecialOpcode::SLT:
                         doALURegister<ALUOpReg::SLT>(instr);
                         break;
@@ -796,6 +837,9 @@ void doInstruction() {
                         break;
                     case SpecialOpcode::DSLL32:
                         doALURegister<ALUOpReg::DSLL32>(instr);
+                        break;
+                    case SpecialOpcode::DSRA32:
+                        doALURegister<ALUOpReg::DSRA32>(instr);
                         break;
                     default:
                         PLOG_FATAL << "Unrecognized function " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
