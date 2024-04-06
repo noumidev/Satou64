@@ -109,6 +109,28 @@ void drawFrameBuffer(const u64 paddr, const u32 format) {
             }
             break;
         case Format::RGBA5551:
+            for (u64 i = 0; i < frameBuffer.size(); i++) {
+                const u16 color = sys::memory::read<u16>(paddr + 2 * i);
+
+                // Extract RGBA5551 color channels
+                const u32 b = (color >>  1) & 0x1F;
+                const u32 g = (color >>  6) & 0x1F;
+                const u32 r = (color >> 11) & 0x1F;
+
+                // Convert to RGBA8888
+                u32 newColor = 0;
+                newColor |= ((b << 3) | (b >> 3)) <<  8;
+                newColor |= ((g << 3) | (g >> 3)) << 16;
+                newColor |= ((r << 3) | (r >> 3)) << 24;
+
+                // Alpha
+                if ((color & 1) != 0) {
+                    newColor |= 0xFF;
+                }
+
+                frameBuffer[i] = newColor;
+            }
+            break;
         case Format::Reserved:
         default:
             PLOG_FATAL << "Unrecognized frame buffer format " << format;
