@@ -79,13 +79,18 @@ namespace Opcode {
         SLTIU = 0x0B,
         ANDI = 0x0C,
         ORI = 0x0D,
+        XORI = 0x0E,
         LUI = 0x0F,
+        BEQL = 0x14,
+        BNEL = 0x15,
+        DADDI = 0x18,
         DADDIU = 0x19,
         LB = 0x20,
         LH = 0x21,
         LW = 0x23,
         LBU = 0x24,
         LHU = 0x25,
+        LWU = 0x27,
         SH = 0x29,
         SW = 0x2B,
         LD = 0x37,
@@ -109,6 +114,7 @@ namespace SpecialOpcode {
         SUBU = 0x23,
         AND = 0x24,
         OR = 0x25,
+        XOR = 0x26,
         NOR = 0x27,
         SLT = 0x2A,
         SLTU = 0x2B,
@@ -122,11 +128,13 @@ enum class ALUOpImm {
     ADDI,
     ADDIU,
     ANDI,
+    DADDI,
     DADDIU,
     LUI,
     ORI,
     SLTI,
     SLTIU,
+    XORI,
 };
 
 enum class ALUOpReg {
@@ -148,12 +156,15 @@ enum class ALUOpReg {
     SRL,
     SRLV,
     SUBU,
+    XOR,
 };
 
 enum class BranchOp {
     BEQ,
+    BEQL,
     BGTZ,
     BNE,
+    BNEL,
 };
 
 enum class JumpOp {
@@ -170,6 +181,7 @@ enum class LoadStoreOp {
     LH,
     LHU,
     LW,
+    LWU,
     SD,
     SH,
     SW,
@@ -450,6 +462,11 @@ void doALUImmediate(const Instruction instr) {
         case ALUOpImm::ANDI:
             set(rt, rsData & (u64)imm);
             break;
+        case ALUOpImm::DADDI:
+            // TODO: overflow check
+
+            set(rt, rsData + (u64)(i16)imm);
+            break;
         case ALUOpImm::DADDIU:
             set(rt, rsData + (u64)(i16)imm);
             break;
@@ -464,6 +481,9 @@ void doALUImmediate(const Instruction instr) {
             break;
         case ALUOpImm::SLTIU:
             set(rt, (u64)(rsData < (u64)(i16)imm));
+            break;
+        case ALUOpImm::XORI:
+            set(rt, rsData ^ (u64)imm);
             break;
     }
 
@@ -499,6 +519,9 @@ void doALUImmediate(const Instruction instr) {
                 break;
             case ALUOpImm::SLTIU:
                 std::printf("[%08X:%08X] sltiu %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, rtData);
+                break;
+            case ALUOpImm::XORI:
+                std::printf("[%08X:%08X] xori %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, rtData);
                 break;
         }
     }
@@ -571,6 +594,9 @@ void doALURegister(const Instruction instr) {
         case ALUOpReg::SUBU:
             set(rd, (u32)(rsData - rtData));
             break;
+        case ALUOpReg::XOR:
+            set(rd, rsData ^ rtData);
+            break;
     }
 
     if constexpr (ENABLE_DISASSEMBLER) {
@@ -641,6 +667,9 @@ void doALURegister(const Instruction instr) {
             case ALUOpReg::SUBU:
                 std::printf("[%08X:%08X] subu %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
                 break;
+            case ALUOpReg::XOR:
+                std::printf("[%08X:%08X] xor %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
+                break;
         }
     }
 }
@@ -668,11 +697,17 @@ void doBranch(const Instruction instr) {
             case BranchOp::BEQ:
                 std::printf("[%08X:%08X] beq %s, %s, %08llX; %s = %016llX, %s = %016llX\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
                 break;
+            case BranchOp::BEQL:
+                std::printf("[%08X:%08X] beql %s, %s, %08llX; %s = %016llX, %s = %016llX\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
+                break;
             case BranchOp::BGTZ:
                 std::printf("[%08X:%08X] bgtz %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
                 break;
             case BranchOp::BNE:
                 std::printf("[%08X:%08X] bne %s, %s, %08llX; %s = %016llX, %s = %016llX\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
+                break;
+            case BranchOp::BNEL:
+                std::printf("[%08X:%08X] bnel %s, %s, %08llX; %s = %016llX, %s = %016llX\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
                 break;
         }
     }
@@ -681,11 +716,17 @@ void doBranch(const Instruction instr) {
         case BranchOp::BEQ:
             branch(target, rsData == rtData, Register::R0, false);
             break;
+        case BranchOp::BEQL:
+            branch(target, rsData == rtData, Register::R0, true);
+            break;
         case BranchOp::BGTZ:
             branch(target, (i64)rsData > 0, Register::R0, false);
             break;
         case BranchOp::BNE:
             branch(target, rsData != rtData, Register::R0, false);
+            break;
+        case BranchOp::BNEL:
+            branch(target, rsData != rtData, Register::R0, true);
             break;
     }
 }
@@ -773,6 +814,9 @@ void doLoadStore(const Instruction instr) {
             case LoadStoreOp::LW:
                 std::printf("[%08X:%08X] lw %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
                 break;
+            case LoadStoreOp::LWU:
+                std::printf("[%08X:%08X] lwu %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
+                break;
             case LoadStoreOp::SD:
                 std::printf("[%08X:%08X] sd %s, %04X(%s); [%08llX] = %016llX\n", pc, instr.raw, rtName, imm, baseName, vaddr, data);
                 break;
@@ -827,6 +871,15 @@ void doLoadStore(const Instruction instr) {
             }
 
             set(rt, read<u32>(vaddr));
+            break;
+        case LoadStoreOp::LWU:
+            if (!isAlignedAddress<u32>(vaddr)) {
+                PLOG_FATAL << "Unaligned LWU address " << std::hex << vaddr;
+
+                exit(0);
+            }
+
+            set(rt, (u64)read<u32>(vaddr));
             break;
         case LoadStoreOp::SD:
             if (!isAlignedAddress<u64>(vaddr)) {
@@ -909,6 +962,9 @@ void doInstruction() {
                     case SpecialOpcode::OR:
                         doALURegister<ALUOpReg::OR>(instr);
                         break;
+                    case SpecialOpcode::XOR:
+                        doALURegister<ALUOpReg::XOR>(instr);
+                        break;
                     case SpecialOpcode::NOR:
                         doALURegister<ALUOpReg::NOR>(instr);
                         break;
@@ -967,8 +1023,20 @@ void doInstruction() {
         case Opcode::ORI:
             doALUImmediate<ALUOpImm::ORI>(instr);
             break;
+        case Opcode::XORI:
+            doALUImmediate<ALUOpImm::XORI>(instr);
+            break;
         case Opcode::LUI:
             doALUImmediate<ALUOpImm::LUI>(instr);
+            break;
+        case Opcode::BEQL:
+            doBranch<BranchOp::BEQL>(instr);
+            break;
+        case Opcode::BNEL:
+            doBranch<BranchOp::BNEL>(instr);
+            break;
+        case Opcode::DADDI:
+            doALUImmediate<ALUOpImm::DADDI>(instr);
             break;
         case Opcode::DADDIU:
             doALUImmediate<ALUOpImm::DADDIU>(instr);
@@ -987,6 +1055,9 @@ void doInstruction() {
             break;
         case Opcode::LHU:
             doLoadStore<LoadStoreOp::LHU>(instr);
+            break;
+        case Opcode::LWU:
+            doLoadStore<LoadStoreOp::LWU>(instr);
             break;
         case Opcode::SH:
             doLoadStore<LoadStoreOp::SH>(instr);
