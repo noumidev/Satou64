@@ -176,6 +176,14 @@ u32 readIO(const u64 ioaddr) {
     }
 }
 
+u32 getFormat() {
+    return regs.control.type;
+}
+
+u32 getOrigin() {
+    return regs.origin.addr;
+}
+
 void writeIO(const u64 ioaddr, const u32 data) {
     switch (ioaddr) {
         case IORegister::CONTROL:

@@ -37,6 +37,9 @@ void reset();
 
 u32 readIO(const u64 ioaddr);
 
+u32 getFormat();
+u32 getOrigin();
+
 void writeIO(const u64 ioaddr, const u32 data);
 
 }
