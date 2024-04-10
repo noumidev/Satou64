@@ -21,17 +21,16 @@
 
 namespace sys::emulator {
 
-constexpr bool IS_FAST_BOOT = true;
-
 constexpr i64 CPU_FREQUENCY = 93750000;
 constexpr i64 CPU_CYCLES_PER_FRAME = CPU_FREQUENCY / 60;
 
-void init(const char *romPath) {
+void init(const char *bootPath, const char *romPath) {
+    PLOG_INFO << "Boot ROM path = " << bootPath;
     PLOG_INFO << "ROM path = " << romPath;
 
     renderer::init();
 
-    sys::memory::init(romPath);
+    sys::memory::init(bootPath, romPath);
 
     hw::cpu::init();
     hw::mi::init();
@@ -73,9 +72,9 @@ void run() {
 void reset() {
     renderer::reset();
 
-    sys::memory::reset(IS_FAST_BOOT);
+    sys::memory::reset();
 
-    hw::cpu::reset(IS_FAST_BOOT);
+    hw::cpu::reset();
     hw::mi::reset();
     hw::pi::reset();
     hw::ri::reset();

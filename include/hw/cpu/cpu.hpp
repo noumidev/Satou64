@@ -16,7 +16,7 @@ void deinit();
 
 void run();
 
-void reset(const bool isFastBoot);
+void reset();
 
 // Returns true if register index is valid
 bool isValidRegisterIndex(const u32 idx);

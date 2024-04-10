@@ -31,13 +31,25 @@ std::array<u8 *, NUM_PAGES> pageTable;
 std::array<u8, MemorySize::RSP_DMEM> dmem;
 std::array<u8, MemorySize::RSP_IMEM> imem;
 std::array<u8, MemorySize::RDRAM> rdram;
-std::array<u8, PAGE_SIZE> pif;
+std::array<u8, MemorySize::PIF_ROM> pifROM;
 
 std::vector<u8> rom;
 
-void init(const char *romPath) {
+void init(const char *bootPath, const char *romPath) {
+    // Read boot ROM
+    FILE *file = std::fopen(bootPath, "rb");
+    if (file == NULL) {
+        PLOG_FATAL << "Unable to open boot ROM file";
+
+        exit(0);
+    }
+
+    // Read file
+    std::fread(pifROM.data(), sizeof(u8), MemorySize::PIF_ROM, file);
+    std::fclose(file);
+
     // Read ROM
-    FILE *file = std::fopen(romPath, "rb");
+    file = std::fopen(romPath, "rb");
     if (file == NULL) {
         PLOG_FATAL << "Unable to open ROM file";
 
@@ -58,19 +70,13 @@ void init(const char *romPath) {
     map(MemoryBase::RSP_DMEM, MemorySize::RSP_DMEM, dmem.data());
     map(MemoryBase::RSP_IMEM, MemorySize::RSP_IMEM, imem.data());
     map(MemoryBase::CART_DOM1_A2, rom.size(), rom.data());
-    map(MemoryBase::PIF_RAM, PAGE_SIZE, pif.data());
 }
 
 void deinit() {}
 
 void run() {}
 
-void reset(const bool isFastBoot) {
-    // Copy IPL3 to RSP DMEM upon fast boot
-    if (isFastBoot) {
-        std::memcpy(dmem.data(), rom.data(), MemorySize::RSP_DMEM);
-    }
-}
+void reset() {}
 
 u64 addressToPage(const u64 addr) {
     return addr >> PAGE_SHIFT;
@@ -137,6 +143,10 @@ u8 read(const u64 paddr) {
         return pageTable[page][offset];
     }
 
+    if ((paddr >= MemoryBase::PIF_ROM) && (paddr < (MemoryBase::PIF_ROM + MemorySize::PIF_ROM))) {
+        return pifROM[paddr - MemoryBase::PIF_ROM];
+    }
+
     PLOG_FATAL << "Unrecognized read8 (address = " << std::hex << paddr << ")";
 
     exit(0);
@@ -157,6 +167,13 @@ u16 read(const u64 paddr) {
 
         u16 data;
         std::memcpy(&data, &pageTable[page][offset], sizeof(u16));
+
+        return byteswap(data);
+    }
+
+    if ((paddr >= MemoryBase::PIF_ROM) && (paddr < (MemoryBase::PIF_ROM + MemorySize::PIF_ROM))) {
+        u16 data;
+        std::memcpy(&data, &pifROM[paddr - MemoryBase::PIF_ROM], sizeof(u16));
 
         return byteswap(data);
     }
@@ -185,6 +202,13 @@ u32 read(const u64 paddr) {
         return byteswap(data);
     }
 
+    if ((paddr >= MemoryBase::PIF_ROM) && (paddr < (MemoryBase::PIF_ROM + MemorySize::PIF_ROM))) {
+        u32 data;
+        std::memcpy(&data, &pifROM[paddr - MemoryBase::PIF_ROM], sizeof(u32));
+
+        return byteswap(data);
+    }
+
     // Try to read I/O
     return readIO(paddr);
 }
@@ -208,6 +232,13 @@ u64 read(const u64 paddr) {
         return byteswap(data);
     }
 
+    if ((paddr >= MemoryBase::PIF_ROM) && (paddr < (MemoryBase::PIF_ROM + MemorySize::PIF_ROM))) {
+        u64 data;
+        std::memcpy(&data, &pifROM[paddr - MemoryBase::PIF_ROM], sizeof(u64));
+
+        return byteswap(data);
+    }
+
     PLOG_FATAL << "Unrecognized read64 (address = " << std::hex << paddr << ")";
 
     exit(0);
@@ -217,6 +248,8 @@ u32 readIO(const u64 ioaddr) {
     const u64 iopage = addressToIOPage(ioaddr);
 
     switch (iopage) {
+        case addressToIOPage(hw::ri::RDRAMRegister::IOBase):
+            return hw::ri::readRDRAM(ioaddr);
         case addressToIOPage(hw::mi::IORegister::IOBase):
             return hw::mi::readIO(ioaddr);
         case addressToIOPage(hw::vi::IORegister::IOBase):

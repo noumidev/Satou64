@@ -24,6 +24,7 @@ namespace MemoryBase {
         RSP_DMEM = 0x4000000,
         RSP_IMEM = 0x4001000,
         CART_DOM1_A2 = 0x10000000,
+        PIF_ROM = 0x1FC00000,
         PIF_RAM = 0x1FC007C0,
     };
 }
@@ -34,15 +35,16 @@ namespace MemorySize {
         RDRAM = 0x800000,
         RSP_DMEM = 0x1000,
         RSP_IMEM = 0x1000,
+        PIF_ROM = 0x7C0,
         PIF_RAM = 0x40,
         AddressSpace = 0x80000000,
     };
 }
 
-void init(const char *romPath);
+void init(const char *bootPath, const char *romPath);
 void deinit();
 
-void reset(const bool isFastBoot);
+void reset();
 
 u64 addressToPage(const u64 addr);
 constexpr u64 addressToIOPage(const u64 addr);

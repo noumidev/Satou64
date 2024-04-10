@@ -20,10 +20,9 @@
 
 namespace hw::cpu {
 
-constexpr bool ENABLE_DISASSEMBLER = false;
+constexpr bool ENABLE_DISASSEMBLER = true;
 
 constexpr u32 ADDR_RESET_VECTOR = 0xBFC00000;
-constexpr u32 ADDR_FAST_BOOT = 0xA4000040;
 
 // CPU virtual memory ranges
 namespace AddressRangeBase {
@@ -248,7 +247,7 @@ void deinit() {
 
 void run() {}
 
-void reset(const bool isFastBoot) {
+void reset() {
     cop0::reset();
 
     // Clear register file
@@ -256,15 +255,6 @@ void reset(const bool isFastBoot) {
 
     // Set program counter
     setPC<false>(ADDR_RESET_VECTOR);
-    if (isFastBoot) {
-        setPC<false>(ADDR_FAST_BOOT);
-
-        // Simulate PIF ROM (https://n64.readthedocs.io/index.html#simulating-the-pif-rom)
-        regFile.regs[Register::T3] = 0xFFFFFFFFA4000040;
-        regFile.regs[Register::S4] = 1;
-        regFile.regs[Register::S6] = 0x3F;
-        regFile.regs[Register::SP] = 0xFFFFFFFFA4001FF0;
-    }
 
     inDelaySlot[0] = inDelaySlot[1] = false;
 }
@@ -526,6 +516,9 @@ void doALUImmediate(const Instruction instr) {
             case ALUOpImm::ANDI:
                 std::printf("[%08X:%08X] andi %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, rtData);
                 break;
+            case ALUOpImm::DADDI:
+                std::printf("[%08X:%08X] daddi %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, rtData);
+                break;
             case ALUOpImm::DADDIU:
                 std::printf("[%08X:%08X] daddiu %s, %s, %04X; %s = %016llX\n", pc, instr.raw, rtName, rsName, imm, rtName, rtData);
                 break;
@@ -773,7 +766,7 @@ void doCoprocessor(const Instruction instr) {
 
         switch (op) {
             case CoprocessorOpcode::MT:
-                std::printf("[%08X:%08X] mtc%d %s, %u; %u = %08X\n", pc, instr.raw, coprocessor, rtName, rd, rd, rtData);
+                std::printf("[%08X:%08X] mtc%d %s, %u; %u = %08X\n", pc, instr.raw, coprocessor, rtName, rd, rd, (u32)rtData);
                 break;
         default:
             PLOG_FATAL << "Unrecognized coprocessor opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
