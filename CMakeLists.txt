@@ -31,6 +31,7 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/external/SDL)
 # Set source files
 set(SOURCES
     src/main.cpp
+    src/hw/ai.cpp
     src/hw/mi.cpp
     src/hw/pi.cpp
     src/hw/ri.cpp
@@ -46,6 +47,7 @@ set(SOURCES
 # Set header files
 set(HEADERS
     include/common/types.hpp
+    include/hw/ai.hpp
     include/hw/mi.hpp
     include/hw/pi.hpp
     include/hw/ri.hpp

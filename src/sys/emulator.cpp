@@ -9,6 +9,7 @@
 
 #include <SDL2/SDL.h>
 
+#include "hw/ai.hpp"
 #include "hw/mi.hpp"
 #include "hw/pi.hpp"
 #include "hw/ri.hpp"
@@ -34,6 +35,7 @@ void init(const char *bootPath, const char *romPath) {
     sys::memory::init(bootPath, romPath);
 
     hw::cpu::init();
+    hw::ai::init();
     hw::mi::init();
     hw::pi::init();
     hw::ri::init();
@@ -45,6 +47,7 @@ void deinit() {
     sys::memory::deinit();
 
     hw::cpu::deinit();
+    hw::ai::deinit();
     hw::mi::deinit();
     hw::pi::deinit();
     hw::ri::deinit();
@@ -78,6 +81,7 @@ void reset() {
     sys::memory::reset();
 
     hw::cpu::reset();
+    hw::ai::reset();
     hw::mi::reset();
     hw::pi::reset();
     hw::ri::reset();
