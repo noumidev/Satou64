@@ -24,7 +24,13 @@ struct Registers {
     bool carry;
 
     // RAM address registers
-    u8 b, sb;
+    union {
+        u8 raw;
+        struct {
+            u8 l : 4;
+            u8 m : 4;
+        };
+    } b, sb;
 
     // Program counter
     union {
@@ -36,6 +42,8 @@ struct Registers {
         };
     } pc;
 
+    u16 oldPC;
+
     // Stack and stack pointer
     union {
         u16 raw;
@@ -46,12 +54,38 @@ struct Registers {
     } sr[STACK_DEPTH];
     u64 sp;
 
-    // Interrupt flags A/B/T, master enable
-    bool ifa, ifb, ift;
+    // Interrupt flags A/B/T
+    union {
+        u8 raw;
+        struct {
+            u8 ifa : 1;
+            u8 ifb : 1;
+            u8 ift : 1;
+            u8 : 5;
+        };
+    } ie;
+
+    // Interrupt master enable
     bool ime;
 
     // Clock divider
     u16 div;
+};
+
+union Instruction {
+    u8 raw;
+
+    // 4-bit immediate type
+    struct {
+        u8 immediate : 4;
+        u8 op : 4;
+    } imm4Type;
+
+    // 2-bit immediate type
+    struct {
+        u8 immediate : 2;
+        u8 op : 6;
+    } imm2Type;
 };
 
 struct SM5 {
@@ -59,7 +93,24 @@ private:
     Registers regs;
 
     // Reads immediate data, increments PC
-    u8 fetchImmediate();
+    u8 fetch();
+
+    void writePort(const u8 port, const u8 data);
+
+    void push();
+    void pop();
+
+    void EX(const Instruction instr);
+    void EXC(const Instruction instr);
+    void EXCI(const Instruction instr);
+    void LAX(const Instruction instr);
+    void LBLX(const Instruction instr);
+    void LBMX(const Instruction instr);
+    void OUT(const Instruction instr);
+    void RTN(const Instruction instr);
+    void TL(const Instruction instr);
+    void TR(const Instruction instr);
+    void TRS(const Instruction instr);
 
     void doInstruction();
 
@@ -70,8 +121,10 @@ public:
     void reset();
 
     u8 (*read)(const u16 paddr);
+    u8 (*readRAM)(const u8 paddr);
 
     void (*write)(const u16 paddr, const u8 data);
+    void (*writeRAM)(const u8 paddr, const u8 data);
 
     void run(const i64 cycles);
 };
