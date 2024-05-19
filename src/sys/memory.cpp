@@ -15,6 +15,7 @@
 #include <plog/Log.h>
 
 #include "hw/ai.hpp"
+#include "hw/dp.hpp"
 #include "hw/mi.hpp"
 #include "hw/pi.hpp"
 #include "hw/pif.hpp"
@@ -260,6 +261,8 @@ u32 readIO(const u64 ioaddr) {
             return hw::ri::readRDRAM(ioaddr);
         case addressToIOPage(hw::sp::IORegister::IOBase):
             return hw::sp::readIO(ioaddr);
+        case addressToIOPage(hw::dp::IORegister::IOBase):
+            return hw::dp::readIO(ioaddr);
         case addressToIOPage(hw::mi::IORegister::IOBase):
             return hw::mi::readIO(ioaddr);
         case addressToIOPage(hw::vi::IORegister::IOBase):
@@ -380,6 +383,8 @@ void writeIO(const u64 ioaddr, const u32 data) {
     switch (iopage) {
         case addressToIOPage(hw::sp::IORegister::IOBase):
             return hw::sp::writeIO(ioaddr, data);
+        case addressToIOPage(hw::dp::IORegister::IOBase):
+            return hw::dp::writeIO(ioaddr, data);
         case addressToIOPage(hw::mi::IORegister::IOBase):
             return hw::mi::writeIO(ioaddr, data);
         case addressToIOPage(hw::vi::IORegister::IOBase):
