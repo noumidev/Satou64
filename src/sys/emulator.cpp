@@ -14,6 +14,7 @@
 #include "hw/pi.hpp"
 #include "hw/pif.hpp"
 #include "hw/ri.hpp"
+#include "hw/si.hpp"
 #include "hw/sp.hpp"
 #include "hw/vi.hpp"
 #include "hw/cpu/cpu.hpp"
@@ -41,6 +42,7 @@ void init(const char *bootPath, const char *romPath) {
     hw::pi::init();
     hw::pif::init();
     hw::ri::init();
+    hw::si::init();
     hw::sp::init();
     hw::vi::init();
 }
@@ -54,6 +56,7 @@ void deinit() {
     hw::pi::deinit();
     hw::pif::deinit();
     hw::ri::deinit();
+    hw::si::deinit();
     hw::sp::deinit();
     hw::vi::deinit();
 
@@ -89,6 +92,7 @@ void reset() {
     hw::pi::reset();
     hw::pif::reset();
     hw::ri::reset();
+    hw::si::reset();
     hw::sp::reset();
     hw::vi::reset();
 }

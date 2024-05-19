@@ -19,6 +19,7 @@
 #include "hw/pi.hpp"
 #include "hw/pif.hpp"
 #include "hw/ri.hpp"
+#include "hw/si.hpp"
 #include "hw/sp.hpp"
 #include "hw/vi.hpp"
 
@@ -281,6 +282,8 @@ u32 readIO(const u64 ioaddr) {
             return hw::pi::readIO(ioaddr);
         case addressToIOPage(hw::ri::IORegister::IOBase):
             return hw::ri::readIO(ioaddr);
+        case addressToIOPage(hw::si::IORegister::IOBase):
+            return hw::si::readIO(ioaddr);
         default:
             PLOG_FATAL << "Unrecognized IO read (address = " << std::hex << ioaddr << ")";
 
@@ -395,6 +398,8 @@ void writeIO(const u64 ioaddr, const u32 data) {
             return hw::pi::writeIO(ioaddr, data);
         case addressToIOPage(hw::ri::IORegister::IOBase):
             return hw::ri::writeIO(ioaddr, data);
+        case addressToIOPage(hw::si::IORegister::IOBase):
+            return hw::si::writeIO(ioaddr, data);
         default:
             PLOG_FATAL << "Unrecognized IO write (address = " << std::hex << ioaddr << ", data = " << data << ")";
 
