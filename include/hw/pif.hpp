@@ -20,4 +20,6 @@ u32 read(const u64 paddr);
 // Writes data to PIF RAM
 void write(const u64 paddr, const u32 data);
 
+void doCommand(const u32 command);
+
 }
