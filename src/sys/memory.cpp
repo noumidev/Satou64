@@ -18,11 +18,11 @@
 #include "hw/dp.hpp"
 #include "hw/mi.hpp"
 #include "hw/pi.hpp"
-#include "hw/pif.hpp"
 #include "hw/ri.hpp"
 #include "hw/si.hpp"
 #include "hw/sp.hpp"
 #include "hw/vi.hpp"
+#include "hw/pif/pif.hpp"
 
 namespace sys::memory {
 

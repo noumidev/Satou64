@@ -35,13 +35,15 @@ set(SOURCES
     src/hw/dp.cpp
     src/hw/mi.cpp
     src/hw/pi.cpp
-    src/hw/pif.cpp
     src/hw/ri.cpp
     src/hw/si.cpp
+    src/hw/sm5.cpp
     src/hw/sp.cpp
     src/hw/vi.cpp
     src/hw/cpu/cop0.cpp
     src/hw/cpu/cpu.cpp
+    src/hw/pif/memory.cpp
+    src/hw/pif/pif.cpp
     src/renderer/renderer.cpp
     src/sys/emulator.cpp
     src/sys/memory.cpp
@@ -54,13 +56,15 @@ set(HEADERS
     include/hw/dp.hpp
     include/hw/mi.hpp
     include/hw/pi.hpp
-    include/hw/pif.hpp
     include/hw/ri.hpp
     include/hw/si.hpp
+    include/hw/sm5.hpp
     include/hw/sp.hpp
     include/hw/vi.hpp
     include/hw/cpu/cop0.hpp
     include/hw/cpu/cpu.hpp
+    include/hw/pif/memory.hpp
+    include/hw/pif/pif.hpp
     include/renderer/renderer.hpp
     include/sys/emulator.hpp
     include/sys/memory.hpp

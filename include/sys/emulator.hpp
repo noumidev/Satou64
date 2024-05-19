@@ -7,7 +7,7 @@
 
 namespace sys::emulator {
 
-void init(const char *bootPath, const char *romPath);
+void init(const char *bootPath, const char *pifPath, const char *romPath);
 void deinit();
 
 void run();

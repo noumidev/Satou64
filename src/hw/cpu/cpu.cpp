@@ -20,7 +20,7 @@
 
 namespace hw::cpu {
 
-constexpr bool ENABLE_DISASSEMBLER = true;
+constexpr bool ENABLE_DISASSEMBLER = false;
 
 constexpr u32 ADDR_RESET_VECTOR = 0xBFC00000;
 

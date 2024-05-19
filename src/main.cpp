@@ -15,13 +15,13 @@ int main(int argc, char **argv) {
     static plog::ColorConsoleAppender<plog::FuncMessageFormatter> consoleAppender;
     plog::init(plog::verbose, &consoleAppender);
 
-    if (argc < 3) {
-        PLOG_ERROR << "Usage: Satou64 [path to boot ROM] [path to N64 ROM]";
+    if (argc < 4) {
+        PLOG_ERROR << "Usage: Satou64 [path to boot ROM] [path to PIF-NUS ROM] [path to N64 ROM]";
 
         return -1;
     }
 
-    sys::emulator::init(argv[1], argv[2]);
+    sys::emulator::init(argv[1], argv[2], argv[3]);
     sys::emulator::reset();
     sys::emulator::run();
     sys::emulator::deinit();

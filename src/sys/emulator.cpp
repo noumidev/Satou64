@@ -13,12 +13,13 @@
 #include "hw/dp.hpp"
 #include "hw/mi.hpp"
 #include "hw/pi.hpp"
-#include "hw/pif.hpp"
 #include "hw/ri.hpp"
 #include "hw/si.hpp"
 #include "hw/sp.hpp"
 #include "hw/vi.hpp"
 #include "hw/cpu/cpu.hpp"
+#include "hw/pif/memory.hpp"
+#include "hw/pif/pif.hpp"
 
 #include "renderer/renderer.hpp"
 
@@ -29,13 +30,16 @@ namespace sys::emulator {
 constexpr i64 CPU_FREQUENCY = 93750000;
 constexpr i64 CPU_CYCLES_PER_FRAME = CPU_FREQUENCY / 60;
 
-void init(const char *bootPath, const char *romPath) {
+void init(const char *bootPath, const char *pifPath, const char *romPath) {
     PLOG_INFO << "Boot ROM path = " << bootPath;
+    PLOG_INFO << "PIF-NUS ROM path = " << pifPath;
     PLOG_INFO << "ROM path = " << romPath;
 
     renderer::init();
 
     sys::memory::init(bootPath, romPath);
+
+    hw::pif::memory::init(pifPath);
 
     hw::cpu::init();
     hw::ai::init();
@@ -51,6 +55,8 @@ void init(const char *bootPath, const char *romPath) {
 
 void deinit() {
     sys::memory::deinit();
+
+    hw::pif::memory::deinit();
 
     hw::cpu::deinit();
     hw::ai::deinit();
@@ -68,6 +74,7 @@ void deinit() {
 
 void run() {
     while (true) {
+        hw::pif::run(CPU_CYCLES_PER_FRAME);
         hw::cpu::run(CPU_CYCLES_PER_FRAME);
 
         renderer::drawFrameBuffer(hw::vi::getOrigin(), hw::vi::getFormat());
@@ -88,6 +95,8 @@ void reset() {
     renderer::reset();
 
     sys::memory::reset();
+
+    hw::pif::memory::reset();
 
     hw::cpu::reset();
     hw::ai::reset();
