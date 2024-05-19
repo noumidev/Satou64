@@ -18,6 +18,7 @@ namespace MemoryBase {
 namespace MemorySize {
     enum : u16 {
         ROM = 0x400,
+        RAM = 0x100,
     };
 }
 
@@ -27,7 +28,9 @@ void deinit();
 void reset();
 
 u8 read(const u16 paddr);
+u8 readRAM(const u8 paddr);
 
 void write(const u16 paddr, const u8 data);
+void writeRAM(const u8 paddr, const u8 data);
 
 }

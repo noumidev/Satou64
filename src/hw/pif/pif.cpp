@@ -22,7 +22,9 @@ SM5 pifNUS;
 
 void init() {
     pifNUS.read = &memory::read;
+    pifNUS.readRAM = &memory::readRAM;
     pifNUS.write = &memory::write;
+    pifNUS.writeRAM = &memory::writeRAM;
 }
 
 void deinit() {}
