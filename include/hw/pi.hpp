@@ -17,6 +17,14 @@ namespace IORegister {
         CARTADDR = IOBase + 0x04,
         WRLEN = IOBase + 0x0C,
         STATUS = IOBase + 0x10,
+        BSDDOM1LAT = IOBase + 0x14,
+        BSDDOM1PWD = IOBase + 0x18,
+        BSDDOM1PGS = IOBase + 0x1C,
+        BSDDOM1RLS = IOBase + 0x20,
+        BSDDOM2LAT = IOBase + 0x24,
+        BSDDOM2PWD = IOBase + 0x28,
+        BSDDOM2PGS = IOBase + 0x2C,
+        BSDDOM2RLS = IOBase + 0x30,
     };
 }
 

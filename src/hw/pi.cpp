@@ -15,6 +15,45 @@
 
 namespace hw::pi {
 
+union BSDLAT {
+    u32 raw;
+    struct {
+        u32 latch : 8;
+        u32 : 24;
+    };
+};
+
+union BSDPWD {
+    u32 raw;
+    struct {
+        u32 pulseWidth : 8;
+        u32 : 24;
+    };
+};
+
+union BSDPGS {
+    u32 raw;
+    struct {
+        u32 pageSize : 4;
+        u32 : 28;
+    };
+};
+
+union BSDRLS {
+    u32 raw;
+    struct {
+        u32 release : 2;
+        u32 : 30;
+    };
+};
+
+struct Domain {
+    BSDLAT bsdlat;
+    BSDPWD bsdpwd;
+    BSDPGS bsdpgs;
+    BSDRLS bsdrls;
+};
+
 union DRAMADDR {
     u32 raw;
     struct {
@@ -50,6 +89,8 @@ struct Registers {
     CARTADDR cartaddr;
     WRLEN wrlen;
     STATUS status;
+
+    Domain dom[2];
 };
 
 Registers regs;
@@ -120,6 +161,46 @@ void writeIO(const u64 ioaddr, const u32 data) {
             if ((data & 2) != 0) {
                 PLOG_WARNING << "Interrupt flag cleared";
             }
+            break;
+        case IORegister::BSDDOM1LAT:
+            PLOG_INFO << "BSDDOM1LAT write (data = " << std::hex << data << ")";
+
+            regs.dom[0].bsdlat.raw = data;
+            break;
+        case IORegister::BSDDOM1PWD:
+            PLOG_INFO << "BSDDOM1PWD write (data = " << std::hex << data << ")";
+
+            regs.dom[0].bsdpwd.raw = data;
+            break;
+        case IORegister::BSDDOM1PGS:
+            PLOG_INFO << "BSDDOM1PGS write (data = " << std::hex << data << ")";
+
+            regs.dom[0].bsdpgs.raw = data;
+            break;
+        case IORegister::BSDDOM1RLS:
+            PLOG_INFO << "BSDDOM1RLS write (data = " << std::hex << data << ")";
+
+            regs.dom[0].bsdrls.raw = data;
+            break;
+        case IORegister::BSDDOM2LAT:
+            PLOG_INFO << "BSDDOM2LAT write (data = " << std::hex << data << ")";
+
+            regs.dom[1].bsdlat.raw = data;
+            break;
+        case IORegister::BSDDOM2PWD:
+            PLOG_INFO << "BSDDOM2PWD write (data = " << std::hex << data << ")";
+
+            regs.dom[1].bsdpwd.raw = data;
+            break;
+        case IORegister::BSDDOM2PGS:
+            PLOG_INFO << "BSDDOM2PGS write (data = " << std::hex << data << ")";
+
+            regs.dom[1].bsdpgs.raw = data;
+            break;
+        case IORegister::BSDDOM2RLS:
+            PLOG_INFO << "BSDDOM2RLS write (data = " << std::hex << data << ")";
+
+            regs.dom[1].bsdrls.raw = data;
             break;
         default:
             PLOG_FATAL << "Unrecognized IO write (address = " << std::hex << ioaddr << ", data = " << data << ")";
