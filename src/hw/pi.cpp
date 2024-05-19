@@ -109,6 +109,18 @@ void writeIO(const u64 ioaddr, const u32 data) {
 
             doDMAToRAM();
             break;
+        case IORegister::STATUS:
+            PLOG_INFO << "STATUS write (data = " << std::hex << data << ")";
+
+            if ((data & 1) != 0) {
+                PLOG_VERBOSE << "DMA controller reset";
+            }
+
+            // TODO: implement PI interrupt flag
+            if ((data & 2) != 0) {
+                PLOG_WARNING << "Interrupt flag cleared";
+            }
+            break;
         default:
             PLOG_FATAL << "Unrecognized IO write (address = " << std::hex << ioaddr << ", data = " << data << ")";
 
