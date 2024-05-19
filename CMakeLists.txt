@@ -34,6 +34,7 @@ set(SOURCES
     src/hw/ai.cpp
     src/hw/mi.cpp
     src/hw/pi.cpp
+    src/hw/pif.cpp
     src/hw/ri.cpp
     src/hw/sp.cpp
     src/hw/vi.cpp
@@ -50,6 +51,7 @@ set(HEADERS
     include/hw/ai.hpp
     include/hw/mi.hpp
     include/hw/pi.hpp
+    include/hw/pif.hpp
     include/hw/ri.hpp
     include/hw/sp.hpp
     include/hw/vi.hpp
