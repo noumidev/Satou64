@@ -17,6 +17,7 @@
 #include "hw/mi.hpp"
 #include "hw/pi.hpp"
 #include "hw/ri.hpp"
+#include "hw/sp.hpp"
 #include "hw/vi.hpp"
 
 namespace sys::memory {
@@ -250,6 +251,8 @@ u32 readIO(const u64 ioaddr) {
     switch (iopage) {
         case addressToIOPage(hw::ri::RDRAMRegister::IOBase):
             return hw::ri::readRDRAM(ioaddr);
+        case addressToIOPage(hw::sp::IORegister::IOBase):
+            return hw::sp::readIO(ioaddr);
         case addressToIOPage(hw::mi::IORegister::IOBase):
             return hw::mi::readIO(ioaddr);
         case addressToIOPage(hw::vi::IORegister::IOBase):
@@ -360,6 +363,8 @@ void writeIO(const u64 ioaddr, const u32 data) {
     const u64 iopage = addressToIOPage(ioaddr);
 
     switch (iopage) {
+        case addressToIOPage(hw::sp::IORegister::IOBase):
+            return hw::sp::writeIO(ioaddr, data);
         case addressToIOPage(hw::mi::IORegister::IOBase):
             return hw::mi::writeIO(ioaddr, data);
         case addressToIOPage(hw::vi::IORegister::IOBase):

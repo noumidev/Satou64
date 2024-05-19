@@ -34,6 +34,7 @@ set(SOURCES
     src/hw/mi.cpp
     src/hw/pi.cpp
     src/hw/ri.cpp
+    src/hw/sp.cpp
     src/hw/vi.cpp
     src/hw/cpu/cop0.cpp
     src/hw/cpu/cpu.cpp
@@ -48,6 +49,7 @@ set(HEADERS
     include/hw/mi.hpp
     include/hw/pi.hpp
     include/hw/ri.hpp
+    include/hw/sp.hpp
     include/hw/vi.hpp
     include/hw/cpu/cop0.hpp
     include/hw/cpu/cpu.hpp
