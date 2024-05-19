@@ -29,21 +29,6 @@ void deinit() {}
 
 void reset() {}
 
-template<>
-u8 read(const u64 paddr) {
-    PLOG_FATAL << "Unrecognized read8 (address = " << std::hex << paddr << ")";
-
-    exit(0);
-}
-
-template<>
-u16 read(const u64 paddr) {
-    PLOG_FATAL << "Unrecognized read16 (address = " << std::hex << paddr << ")";
-
-    exit(0);
-}
-
-template<>
 u32 read(const u64 paddr) {
     switch (paddr) {
         case PIFRAM::Seeds:
@@ -55,17 +40,10 @@ u32 read(const u64 paddr) {
 
             return 0;
         default:
-            PLOG_FATAL << "Unrecognized read32 (address = " << std::hex << paddr << ")";
+            PLOG_FATAL << "Unrecognized read (address = " << std::hex << paddr << ")";
 
             exit(0);
     }
-}
-
-template<>
-u64 read(const u64 paddr) {
-    PLOG_FATAL << "Unrecognized read64 (address = " << std::hex << paddr << ")";
-
-    exit(0);
 }
 
 }

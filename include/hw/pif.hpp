@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include <type_traits>
-
 #include "common/types.hpp"
 
 namespace hw::pif {
@@ -17,11 +15,9 @@ void deinit();
 void reset();
 
 // Reads data from PIF RAM
-template<typename T>
-T read(const u64 paddr) requires std::is_unsigned_v<T>;
+u32 read(const u64 paddr);
 
 // Writes data to PIF RAM
-template<typename T>
-void write(const u64 paddr, const T data) requires std::is_unsigned_v<T>;
+void write(const u64 paddr, const u32 data);
 
 }
