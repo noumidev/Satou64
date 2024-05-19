@@ -69,6 +69,7 @@ constexpr const char *REG_NAMES[Register::NumberOfRegisters] = {
 namespace Opcode {
     enum : u32 {
         SPECIAL = 0x00,
+        REGIMM = 0x01,
         J = 0x02,
         JAL = 0x03,
         BEQ = 0x04,
@@ -100,6 +101,12 @@ namespace Opcode {
     };
 }
 
+namespace RegimmOpcode {
+    enum : u32 {
+        BGEZAL = 0x11,
+    };
+}
+
 namespace SpecialOpcode {
     enum : u32 {
         SLL = 0x00,
@@ -110,7 +117,10 @@ namespace SpecialOpcode {
         SRAV = 0x07,
         JR = 0x08,
         JALR = 0x09,
+        MFHI = 0x10,
+        MFLO = 0x12,
         DSLLV = 0x14,
+        MULTU = 0x19,
         ADD = 0x20,
         ADDU = 0x21,
         SUBU = 0x23,
@@ -153,6 +163,9 @@ enum class ALUOpReg {
     DSLLV,
     DSLL32,
     DSRA32,
+    MFHI,
+    MFLO,
+    MULTU,
     NOR,
     OR,
     SLL,
@@ -170,6 +183,7 @@ enum class ALUOpReg {
 enum class BranchOp {
     BEQ,
     BEQL,
+    BGEZAL,
     BGTZ,
     BNE,
     BNEL,
@@ -575,6 +589,20 @@ void doALURegister(const Instruction instr) {
         case ALUOpReg::DSRA32:
             set(rd, (u64)((i64)rtData >> (sa + 32)));
             break;
+        case ALUOpReg::MFHI:
+            set(rd, get(Register::HI));
+            break;
+        case ALUOpReg::MFLO:
+            set(rd, get(Register::LO));
+            break;
+        case ALUOpReg::MULTU:
+            {
+                const u64 res = (u64)(u32)rsData * (u64)(u32)rtData;
+
+                set(Register::LO, (u32)res);
+                set(Register::HI, (u32)(res >> 32));
+            }
+            break;
         case ALUOpReg::NOR:
             set(rd, ~(rsData | rtData));
             break;
@@ -643,6 +671,15 @@ void doALURegister(const Instruction instr) {
                 break;
             case ALUOpReg::DSRA32:
                 std::printf("[%08X:%08X] dsra32 %s, %s, %u; %s = %016llX\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
+                break;
+            case ALUOpReg::MFHI:
+                std::printf("[%08X:%08X] mfhi %s; %s = %016llX\n", pc, instr.raw, rdName, rdName, rdData);
+                break;
+            case ALUOpReg::MFLO:
+                std::printf("[%08X:%08X] mflo %s; %s = %016llX\n", pc, instr.raw, rdName, rdName, rdData);
+                break;
+            case ALUOpReg::MULTU:
+                std::printf("[%08X:%08X] multu %s, %s; LO = %016llX, HI = %016llX\n", pc, instr.raw, rsName, rtName, get(Register::LO), get(Register::HI));
                 break;
             case ALUOpReg::NOR:
                 std::printf("[%08X:%08X] nor %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
@@ -714,6 +751,9 @@ void doBranch(const Instruction instr) {
             case BranchOp::BEQL:
                 std::printf("[%08X:%08X] beql %s, %s, %08llX; %s = %016llX, %s = %016llX\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
                 break;
+            case BranchOp::BGEZAL:
+                std::printf("[%08X:%08X] bgezal %s, %08llX; %s = %016llX, ra = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData, getPC<false>());
+                break;
             case BranchOp::BGTZ:
                 std::printf("[%08X:%08X] bgtz %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
                 break;
@@ -732,6 +772,9 @@ void doBranch(const Instruction instr) {
             break;
         case BranchOp::BEQL:
             branch(target, rsData == rtData, Register::R0, true);
+            break;
+        case BranchOp::BGEZAL:
+            branch(target, (i64)rsData >= 0, Register::RA, false);
             break;
         case BranchOp::BGTZ:
             branch(target, (i64)rsData > 0, Register::R0, false);
@@ -999,8 +1042,17 @@ void doInstruction() {
                     case SpecialOpcode::JALR:
                         doJump<JumpOp::JALR>(instr);
                         break;
+                    case SpecialOpcode::MFHI:
+                        doALURegister<ALUOpReg::MFHI>(instr);
+                        break;
+                    case SpecialOpcode::MFLO:
+                        doALURegister<ALUOpReg::MFLO>(instr);
+                        break;
                     case SpecialOpcode::DSLLV:
                         doALURegister<ALUOpReg::DSLLV>(instr);
+                        break;
+                    case SpecialOpcode::MULTU:
+                        doALURegister<ALUOpReg::MULTU>(instr);
                         break;
                     case SpecialOpcode::ADD:
                         doALURegister<ALUOpReg::ADD>(instr);
@@ -1040,6 +1092,19 @@ void doInstruction() {
                         break;
                     default:
                         PLOG_FATAL << "Unrecognized function " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+
+                        exit(0);
+                }
+            }
+            break;
+        case Opcode::REGIMM: {
+                const u32 op = instr.iType.rt;
+                switch (op) {
+                    case RegimmOpcode::BGEZAL:
+                        doBranch<BranchOp::BGEZAL>(instr);
+                        break;
+                    default:
+                        PLOG_FATAL << "Unrecognized REGIMM opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
 
                         exit(0);
                 }
