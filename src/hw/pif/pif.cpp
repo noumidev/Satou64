@@ -14,6 +14,8 @@
 #include "hw/sm5.hpp"
 #include "hw/pif/memory.hpp"
 
+#include "sys/memory.hpp"
+
 namespace hw::pif {
 
 using sm5::SM5;
@@ -34,21 +36,18 @@ void reset() {
 }
 
 u32 read(const u64 paddr) {
-    switch (paddr) {
-        default:
-            PLOG_FATAL << "Unrecognized read (address = " << std::hex << paddr << ")";
+    u32 data;
+    std::memcpy(&data, memory::getRAMPointer(paddr - sys::memory::MemoryBase::PIF_RAM + sys::memory::MemorySize::PIF_RAM), sizeof(u32));
 
-            exit(0);
-    }
+    // PLOG_VERBOSE << "PIF RAM read (address = " << std::hex << paddr << ", data = " << data << ")";
+
+    return data;
 }
 
 void write(const u64 paddr, const u32 data) {
-    switch (paddr) {
-        default:
-            PLOG_FATAL << "Unrecognized write (address = " << std::hex << paddr << ", data = " << data << ")";
+    // PLOG_VERBOSE << "PIF RAM write (address = " << std::hex << paddr << ", data = " << data << ")";
 
-            exit(0);
-    }
+    std::memcpy(memory::getRAMPointer(paddr - sys::memory::MemoryBase::PIF_RAM + sys::memory::MemorySize::PIF_RAM), &data, sizeof(u32));
 }
 
 void run(const i64 cycles) {
