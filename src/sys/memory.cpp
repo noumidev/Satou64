@@ -215,7 +215,7 @@ u32 read(const u64 paddr) {
     }
 
     if ((paddr >= MemoryBase::PIF_RAM) && (paddr < (MemoryBase::PIF_RAM + MemorySize::PIF_RAM))) {
-        return hw::pif::read(paddr);
+        return byteswap(hw::pif::read(paddr));
     }
 
     // Try to read I/O
