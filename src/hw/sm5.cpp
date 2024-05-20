@@ -18,7 +18,12 @@ constexpr bool ENABLE_DISASSEMBLER = true;
 
 namespace Opcode {
     enum : u8 {
+        RC = 0x60,
+        SC = 0x61,
+        EXAX = 0x64,
+        EXBL = 0x67,
         EX = 0x68,
+        TC = 0x6E,
         OUT = 0x75,
         RTN = 0x7D,
         TR = 0x80,
@@ -29,6 +34,7 @@ namespace Opcode {
 
 namespace Imm2Opcode {
     enum : u8 {
+        TPB = 0x13,
         EXC = 0x15,
         EXCI = 0x16,
     };
@@ -36,6 +42,7 @@ namespace Imm2Opcode {
 
 namespace Imm4Opcode {
     enum : u8 {
+        ADX = 0,
         LAX = 1,
         LBLX = 2,
         LBMX = 3,
@@ -60,9 +67,22 @@ void SM5::reset() {
 u8 SM5::fetch() {
     const u8 data = read(regs.pc.raw);
 
-    regs.pc.pl++;
+    skip();
 
     return data;
+}
+
+u8 SM5::readPort(const u8 port) {
+    switch (port) {
+        case Port::CIC:
+            PLOG_WARNING << "Read from CIC";
+
+            return 0;
+        default:
+            PLOG_FATAL << "Unrecognized read from port " << (u16)port;
+
+            exit(0);
+    }
 }
 
 void SM5::writePort(const u8 port, const u8 data) {
@@ -118,6 +138,27 @@ void SM5::pop() {
     regs.pc.raw = regs.sr[regs.sp].data;
 }
 
+void SM5::skip() {
+    regs.pc.pl++;
+}
+
+void SM5::ADX(const Instruction instr) {
+    const u8 imm = instr.imm4Type.immediate;
+
+    const u8 res = regs.xa.a + imm;
+    regs.carry = res > 0xF;
+
+    regs.xa.a = res & 0xF;
+
+    if (regs.carry) {
+        skip();
+    }
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] adx #%01X\n", regs.oldPC, instr.raw, imm);
+    }
+}
+
 void SM5::EX(const Instruction instr) {
     const u8 temp = regs.b.raw;
 
@@ -126,6 +167,28 @@ void SM5::EX(const Instruction instr) {
 
     if constexpr (ENABLE_DISASSEMBLER) {
         std::printf("[%03X:%02X] ex\n", regs.oldPC, instr.raw);
+    }
+}
+
+void SM5::EXAX(const Instruction instr) {
+    const u8 temp = regs.xa.a;
+
+    regs.xa.a = regs.xa.x;
+    regs.xa.x = temp;
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] exax\n", regs.oldPC, instr.raw);
+    }
+}
+
+void SM5::EXBL(const Instruction instr) {
+    const u8 temp = regs.xa.a;
+
+    regs.xa.a = regs.b.l;
+    regs.b.l = temp;
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] exbl\n", regs.oldPC, instr.raw);
     }
 }
 
@@ -162,7 +225,7 @@ void SM5::EXCI(const Instruction instr) {
     regs.b.m ^= imm;
 
     if (regs.b.l == 0) {
-        regs.pc.pl++;
+        skip();
     }
 }
 
@@ -207,11 +270,37 @@ void SM5::OUT(const Instruction instr) {
     writePort(port, data);
 }
 
+void SM5::RC(const Instruction instr) {
+    regs.carry = false;
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] rc\n", regs.oldPC, instr.raw);
+    }
+}
+
 void SM5::RTN(const Instruction instr) {
     pop();
 
     if constexpr (ENABLE_DISASSEMBLER) {
         std::printf("[%03X:%02X] rtn\n", regs.oldPC, instr.raw);
+    }
+}
+
+void SM5::SC(const Instruction instr) {
+    regs.carry = true;
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] sc\n", regs.oldPC, instr.raw);
+    }
+}
+
+void SM5::TC(const Instruction instr) {
+    if (regs.carry) {
+        skip();
+    }
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] tc\n", regs.oldPC, instr.raw);
     }
 }
 
@@ -222,6 +311,21 @@ void SM5::TL(const Instruction instr) {
 
     if constexpr (ENABLE_DISASSEMBLER) {
         std::printf("[%03X:%02X] tl %03X\n", regs.oldPC, instr.raw, regs.pc.raw);
+    }
+}
+
+void SM5::TPB(const Instruction instr) {
+    const u8 imm = instr.imm2Type.immediate;
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] tpb #%x\n", regs.oldPC, instr.raw, imm);
+    }
+
+    const u8 port = regs.b.l;
+    const u8 data = readPort(port);
+
+    if ((data & (1 << imm)) != 0) {
+        skip();
     }
 }
 
@@ -256,6 +360,8 @@ void SM5::doInstruction() {
 
     // 2-bit immediate instructions
     switch (instr.imm2Type.op) {
+        case Imm2Opcode::TPB:
+            return TPB(instr);
         case Imm2Opcode::EXC:
             return EXC(instr);
         case Imm2Opcode::EXCI:
@@ -266,6 +372,8 @@ void SM5::doInstruction() {
 
     // 4-bit immediate instructions
     switch (instr.imm4Type.op) {
+        case Imm4Opcode::ADX:
+            return ADX(instr);
         case Imm4Opcode::LAX:
             return LAX(instr);
         case Imm4Opcode::LBLX:
@@ -290,8 +398,18 @@ void SM5::doInstruction() {
     }
 
     switch (op) {
+        case Opcode::RC:
+            return RC(instr);
+        case Opcode::SC:
+            return SC(instr);
+        case Opcode::EXAX:
+            return EXAX(instr);
+        case Opcode::EXBL:
+            return EXBL(instr);
         case Opcode::EX:
             return EX(instr);
+        case Opcode::TC:
+            return TC(instr);
         case Opcode::OUT:
             return OUT(instr);
         case Opcode::RTN:

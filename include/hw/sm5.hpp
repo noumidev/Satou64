@@ -95,20 +95,31 @@ private:
     // Reads immediate data, increments PC
     u8 fetch();
 
+    u8 readPort(const u8 port);
+
     void writePort(const u8 port, const u8 data);
 
     void push();
     void pop();
 
+    void skip();
+
+    void ADX(const Instruction instr);
     void EX(const Instruction instr);
+    void EXAX(const Instruction instr);
+    void EXBL(const Instruction instr);
     void EXC(const Instruction instr);
     void EXCI(const Instruction instr);
     void LAX(const Instruction instr);
     void LBLX(const Instruction instr);
     void LBMX(const Instruction instr);
     void OUT(const Instruction instr);
+    void RC(const Instruction instr);
     void RTN(const Instruction instr);
+    void SC(const Instruction instr);
+    void TC(const Instruction instr);
     void TL(const Instruction instr);
+    void TPB(const Instruction instr);
     void TR(const Instruction instr);
     void TRS(const Instruction instr);
 
