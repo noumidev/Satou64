@@ -18,7 +18,7 @@ namespace MemoryBase {
 namespace MemorySize {
     enum : u16 {
         ROM = 0x400,
-        RAM = 0x100,
+        RAM = 0x80,
     };
 }
 

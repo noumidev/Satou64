@@ -12,6 +12,8 @@
 
 #include <plog/Log.h>
 
+#include "hw/cic.hpp"
+
 namespace hw::sm5 {
 
 constexpr bool ENABLE_DISASSEMBLER = true;
@@ -75,9 +77,7 @@ u8 SM5::fetch() {
 u8 SM5::readPort(const u8 port) {
     switch (port) {
         case Port::CIC:
-            PLOG_WARNING << "Read from CIC";
-
-            return 0;
+            return hw::cic::read();
         default:
             PLOG_FATAL << "Unrecognized read from port " << (u16)port;
 
@@ -88,8 +88,7 @@ u8 SM5::readPort(const u8 port) {
 void SM5::writePort(const u8 port, const u8 data) {
     switch (port) {
         case Port::CIC:
-            PLOG_WARNING << "Write to CIC (data = " << std::hex << (u16)(data & 0xF) << ")";
-            break;
+            return hw::cic::write(data & 0xF);
         case Port::InterruptEnable:
             PLOG_VERBOSE << "Write to Interrupt Enable (data = " << std::hex << (u16)(data & 0xF) << ")";
 
@@ -146,11 +145,10 @@ void SM5::ADX(const Instruction instr) {
     const u8 imm = instr.imm4Type.immediate;
 
     const u8 res = regs.xa.a + imm;
-    regs.carry = res > 0xF;
-
     regs.xa.a = res & 0xF;
 
-    if (regs.carry) {
+    // Carry?
+    if (res > 0xF) {
         skip();
     }
 
@@ -199,7 +197,7 @@ void SM5::EXC(const Instruction instr) {
         std::printf("[%03X:%02X] exc #%x\n", regs.oldPC, instr.raw, imm);
     }
 
-    const u8 temp = regs.xa.raw;
+    const u8 temp = regs.xa.a;
     const u8 paddr = regs.b.raw;
 
     regs.xa.raw = readRAM(paddr);
@@ -215,10 +213,10 @@ void SM5::EXCI(const Instruction instr) {
         std::printf("[%03X:%02X] exci #%x\n", regs.oldPC, instr.raw, imm);
     }
 
-    const u8 temp = regs.xa.raw;
+    const u8 temp = regs.xa.a;
     const u8 paddr = regs.b.raw;
 
-    regs.xa.raw = readRAM(paddr);
+    regs.xa.a = readRAM(paddr);
     writeRAM(paddr, temp);
 
     regs.b.l++;
