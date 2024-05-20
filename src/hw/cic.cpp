@@ -13,7 +13,7 @@
 
 namespace hw::cic {
 
-constexpr u8 CIC_ID = 0xA;
+constexpr u8 CIC_ID = 0x8;
 
 namespace Pin {
     enum : u8 {
