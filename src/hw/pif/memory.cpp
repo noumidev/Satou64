@@ -48,9 +48,9 @@ u8 read(const u16 paddr) {
 
 u8 readRAM(const u8 paddr) {
     const u8 addr = paddr >> 1;
-    const u8 nibble = paddr & 1;
+    const u8 nibble = (paddr & 1) ^ 1;
 
-    PLOG_VERBOSE << "PIF RAM read (address = " << std::hex << (u16)addr << ":" << (u16)nibble << ")";
+    // PLOG_VERBOSE << "PIF RAM read (address = " << std::hex << (u16)addr << ":" << (u16)nibble << ")";
 
     return (ram[addr] >> (4 * nibble)) & 0xF;
 }
@@ -63,12 +63,22 @@ void write(const u16 paddr, const u8 data) {
 
 void writeRAM(const u8 paddr, const u8 data) {
     const u8 addr = paddr >> 1;
-    const u8 nibble = paddr & 1;
+    const u8 nibble = (paddr & 1) ^ 1;
 
-    PLOG_VERBOSE << "PIF RAM write (address = " << std::hex << (u16)addr << ":" << (u16)nibble << ", data = " << (u16)data << ")";
+    // PLOG_VERBOSE << "PIF RAM write (address = " << std::hex << (u16)addr << ":" << (u16)nibble << ", data = " << (u16)data << ")";
 
     ram[addr] &= 0xF0 >> (4 * nibble);
     ram[addr] |= data << (4 * nibble);
+}
+
+void *getRAMPointer(const u8 paddr) {
+    if (paddr > (MemorySize::RAM - 4)) {
+        PLOG_FATAL << "Invalid RAM address";
+
+        exit(0);
+    }
+
+    return &ram[paddr];
 }
 
 }

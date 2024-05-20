@@ -33,4 +33,6 @@ u8 readRAM(const u8 paddr);
 void write(const u16 paddr, const u8 data);
 void writeRAM(const u8 paddr, const u8 data);
 
+void *getRAMPointer(const u8 paddr);
+
 }
