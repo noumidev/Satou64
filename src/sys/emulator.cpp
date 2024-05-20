@@ -74,7 +74,7 @@ void deinit() {
 
 void run() {
     while (true) {
-        hw::pif::run(CPU_CYCLES_PER_FRAME);
+        hw::pif::run(CPU_CYCLES_PER_FRAME >> 5);
         hw::cpu::run(CPU_CYCLES_PER_FRAME);
 
         renderer::drawFrameBuffer(hw::vi::getOrigin(), hw::vi::getFormat());
