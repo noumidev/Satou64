@@ -104,21 +104,36 @@ private:
 
     void skip();
 
+    void ADD(const Instruction instr);
     void ADX(const Instruction instr);
+    void CALL(const Instruction instr);
+    void COMA(const Instruction instr);
+    void DECB(const Instruction instr);
     void EX(const Instruction instr);
     void EXAX(const Instruction instr);
     void EXBL(const Instruction instr);
+    void EXBM(const Instruction instr);
     void EXC(const Instruction instr);
+    void EXCD(const Instruction instr);
     void EXCI(const Instruction instr);
+    void ID(const Instruction instr);
+    void IE(const Instruction instr);
+    void INCB(const Instruction instr);
     void LAX(const Instruction instr);
     void LBLX(const Instruction instr);
     void LBMX(const Instruction instr);
+    void LDA(const Instruction instr);
     void OUT(const Instruction instr);
     void RC(const Instruction instr);
+    void RM(const Instruction instr);
     void RTN(const Instruction instr);
+    void RTNS(const Instruction instr);
     void SC(const Instruction instr);
+    void SM(const Instruction instr);
+    void TAM(const Instruction instr);
     void TC(const Instruction instr);
     void TL(const Instruction instr);
+    void TM(const Instruction instr);
     void TPB(const Instruction instr);
     void TR(const Instruction instr);
     void TRS(const Instruction instr);
