@@ -347,7 +347,7 @@ void write(const u64 paddr, const u32 data) {
     }
 
     if ((paddr >= MemoryBase::PIF_RAM) && (paddr < (MemoryBase::PIF_RAM + MemorySize::PIF_RAM))) {
-        return hw::pif::write(paddr, data);
+        return hw::pif::write(paddr, byteswap(data));
     }
 
     // Try to write I/O
