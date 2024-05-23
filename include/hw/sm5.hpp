@@ -106,6 +106,7 @@ private:
 
     void ADD(const Instruction instr);
     void ADX(const Instruction instr);
+    void ATX(const Instruction instr);
     void CALL(const Instruction instr);
     void COMA(const Instruction instr);
     void DECB(const Instruction instr);
@@ -124,6 +125,7 @@ private:
     void LBMX(const Instruction instr);
     void LDA(const Instruction instr);
     void OUT(const Instruction instr);
+    void PAT(const Instruction instr);
     void RC(const Instruction instr);
     void RM(const Instruction instr);
     void RTN(const Instruction instr);

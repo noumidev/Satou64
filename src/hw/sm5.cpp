@@ -16,7 +16,7 @@
 
 namespace hw::sm5 {
 
-constexpr bool ENABLE_DISASSEMBLER = true;
+constexpr bool ENABLE_DISASSEMBLER = false;
 
 namespace Opcode {
     enum : u8 {
@@ -25,9 +25,11 @@ namespace Opcode {
         ID = 0x62,
         IE = 0x63,
         EXAX = 0x64,
+        ATX = 0x65,
         EXBM = 0x66,
         EXBL = 0x67,
         EX = 0x68,
+        PAT = 0x6A,
         TC = 0x6E,
         TAM = 0x6F,
         OUT = 0x75,
@@ -68,7 +70,10 @@ namespace Imm4Opcode {
 
 namespace Port {
     enum : u8 {
+        JoyBus = 2,
         CIC = 5,
+        BootROMDisable = 6,
+        RNG = 9,
         InterruptEnable = 14,
     };
 }
@@ -93,6 +98,10 @@ u8 SM5::readPort(const u8 port) {
     switch (port) {
         case Port::CIC:
             return hw::cic::read();
+        case Port::RNG:
+            PLOG_WARNING << "Read from RNG";
+
+            return 0xFF;
         default:
             PLOG_FATAL << "Unrecognized read from port " << (u16)port;
 
@@ -102,8 +111,17 @@ u8 SM5::readPort(const u8 port) {
 
 void SM5::writePort(const u8 port, const u8 data) {
     switch (port) {
+        case Port::JoyBus:
+            PLOG_WARNING << "Write to JoyBus (data = " << std::hex << (u16)(data & 0xF) << ")";
+            break;
         case Port::CIC:
             return hw::cic::write(data & 0xF);
+        case Port::BootROMDisable:
+            PLOG_VERBOSE << "Write to Boot ROM Disable (data = " << std::hex << (u16)(data & 0xF) << ")";
+            break;
+        case Port::RNG:
+            PLOG_WARNING << "Write to RNG (data = " << std::hex << (u16)(data & 0xF) << ")";
+            break;
         case Port::InterruptEnable:
             PLOG_VERBOSE << "Write to Interrupt Enable (data = " << std::hex << (u16)(data & 0xF) << ")";
 
@@ -177,6 +195,14 @@ void SM5::ADX(const Instruction instr) {
 
     if constexpr (ENABLE_DISASSEMBLER) {
         std::printf("[%03X:%02X] adx #%01X\n", regs.oldPC, instr.raw, imm);
+    }
+}
+
+void SM5::ATX(const Instruction instr) {
+    regs.xa.x = regs.xa.a;
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] atx\n", regs.oldPC, instr.raw);
     }
 }
 
@@ -266,7 +292,7 @@ void SM5::EXC(const Instruction instr) {
     const u8 temp = regs.xa.a;
     const u8 paddr = regs.b.raw;
 
-    regs.xa.raw = readRAM(paddr);
+    regs.xa.a = readRAM(paddr);
     writeRAM(paddr, temp);
 
     regs.b.m ^= imm;
@@ -392,6 +418,21 @@ void SM5::OUT(const Instruction instr) {
     }
 
     writePort(port, data);
+}
+
+void SM5::PAT(const Instruction instr) {
+    push();
+
+    regs.pc.pu = 4;
+    regs.pc.pl = regs.xa.raw & 0x3F;
+
+    regs.xa.raw = read(regs.pc.raw);
+
+    pop();
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] pat\n", regs.oldPC, instr.raw);
+    }
 }
 
 void SM5::RC(const Instruction instr) {
@@ -599,12 +640,16 @@ void SM5::doInstruction() {
             return IE(instr);
         case Opcode::EXAX:
             return EXAX(instr);
+        case Opcode::ATX:
+            return ATX(instr);
         case Opcode::EXBM:
             return EXBM(instr);
         case Opcode::EXBL:
             return EXBL(instr);
         case Opcode::EX:
             return EX(instr);
+        case Opcode::PAT:
+            return PAT(instr);
         case Opcode::TC:
             return TC(instr);
         case Opcode::TAM:
