@@ -14,7 +14,7 @@ void deinit();
 
 void reset();
 
-void setNextData(const u8 data);
+void setNextData(const int idx);
 
 u8 read();
 
