@@ -25,6 +25,8 @@ namespace Register {
         Status = 12,
         Cause = 13,
         Config = 16,
+        TagLo = 28,
+        TagHi = 29,
     };
 };
 
@@ -179,6 +181,12 @@ void set(const u32 idx, const u32 data) {
             break;
         case Register::Config:
             regs.config.raw = (data & WriteMask::Config) | (regs.config.raw & ~WriteMask::Config);
+            break;
+        case Register::TagLo:
+            PLOG_WARNING << "TagLo write (data = " << std::hex << data << ")";
+            break;
+        case Register::TagHi:
+            PLOG_WARNING << "TagHi write (data = " << std::hex << data << ")";
             break;
         default:
             PLOG_FATAL << "Unrecognized set32 register " << idx << " (data = " << std::hex << data << ")";
