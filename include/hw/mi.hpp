@@ -14,6 +14,7 @@ namespace IORegister {
     enum : u64 {
         IOBase = 0x4300000,
         MODE = IOBase + 0x00,
+        VERSION = IOBase + 0x04,
     };
 }
 

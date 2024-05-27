@@ -13,6 +13,8 @@
 
 namespace hw::mi {
 
+constexpr u32 VERSION = 0x2020102;
+
 struct MODE {
     u32 repeatCount;
 
@@ -37,6 +39,10 @@ void reset() {
 
 u32 readIO(const u64 ioaddr) {
     switch (ioaddr) {
+        case IORegister::VERSION:
+            PLOG_INFO << "VERSION read";
+
+            return VERSION;
         default:
             PLOG_FATAL << "Unrecognized IO read (address = " << std::hex << ioaddr << ")";
 
