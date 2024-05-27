@@ -381,6 +381,12 @@ void writeIO(const u64 ioaddr, const u32 data) {
     const u64 iopage = addressToIOPage(ioaddr);
 
     switch (iopage) {
+        case addressToIOPage(hw::ri::RDRAMRegister::IOBase):
+            if (ioaddr >= hw::ri::RDRAMRegister::IOBaseBroadcast) {
+                return hw::ri::writeRDRAMBroadcast(ioaddr, data);
+            }
+
+            return hw::ri::writeRDRAM(ioaddr, data);
         case addressToIOPage(hw::sp::IORegister::IOBase):
             return hw::sp::writeIO(ioaddr, data);
         case addressToIOPage(hw::dp::IORegister::IOBase):
