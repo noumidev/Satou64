@@ -56,6 +56,10 @@ u32 readIO(const u64 ioaddr) {
             PLOG_INFO << "DMABUSY read";
 
             return regs.status.dmaBusy;
+        case IORegister::PC:
+            PLOG_WARNING << "PC read";
+
+            return 0;
         default:
             PLOG_FATAL << "Unrecognized IO read (address = " << std::hex << ioaddr << ")";
 

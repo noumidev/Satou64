@@ -15,6 +15,7 @@ namespace IORegister {
         IOBase = 0x4040000,
         STATUS = IOBase + 0x10,
         DMABUSY = IOBase + 0x18,
+        PC = IOBase + 0x40000,
     };
 }
 
