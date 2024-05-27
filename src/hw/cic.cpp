@@ -13,9 +13,21 @@
 
 namespace hw::cic {
 
+constexpr u64 SCRAMBLE(const u64 data, const int length) {
+    u64 result = data & (0xFULL << (length - 4));
+    for (int i = length - 8; i >= 0; i -= 4) {
+        const u64 prev = (result >> (i + 4)) & 0xF;
+        const u64 curr = (data   >> (i + 0)) & 0xF;
+
+        result |= ((prev + curr + 1) & 0xF) << i;
+    }
+
+    return result;
+}
+
 constexpr u64 CIC_ID = 1;
-constexpr u64 CIC_SEEDS = 0xBD393D;
-constexpr u64 CIC_CHECKSUM = 0x3F57293E547CF590;
+constexpr u64 CIC_SEEDS = SCRAMBLE(SCRAMBLE(0xB53F3F, 24), 24);
+constexpr u64 CIC_CHECKSUM = SCRAMBLE(SCRAMBLE(SCRAMBLE(SCRAMBLE(0x0000A536C0F1D859, 64), 64), 64), 64);
 
 namespace Pin {
     enum : u8 {
@@ -44,7 +56,10 @@ int state;
 
 CICData dataOut;
 
-void init() {}
+void init() {
+    PLOG_INFO << "IPL2/3 seed is " << std::hex << CIC_SEEDS;
+    PLOG_INFO << "IPL3 checksum is " << std::hex << CIC_CHECKSUM;
+}
 
 void deinit() {}
 
@@ -73,11 +88,11 @@ u8 read() {
                 setNextData(state);
                 break;
             case State::SendSeeds:
-                state = State::RandomEntropy;
                 break;
             case State::RandomEntropy:
                 exit(0);
             case State::SendChecksum:
+                PLOG_ERROR << "SendChecksum";
                 break;
         }
     }
@@ -91,9 +106,15 @@ void write(const u8 data) {
 
         if (state == State::RandomEntropy) {
             state = State::SendChecksum;
+
+            setNextData(state);
         }
 
         return;
+    } else {
+        if ((state == State::SendSeeds) && (dataOut.length == 0)) {
+            state = State::RandomEntropy;
+        }
     }
 
     switch (state) {
