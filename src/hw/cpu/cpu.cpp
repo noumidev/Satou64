@@ -86,6 +86,7 @@ namespace Opcode {
         COP0 = 0x10,
         BEQL = 0x14,
         BNEL = 0x15,
+        BLEZL = 0x16,
         DADDI = 0x18,
         DADDIU = 0x19,
         LB = 0x20,
@@ -94,8 +95,10 @@ namespace Opcode {
         LBU = 0x24,
         LHU = 0x25,
         LWU = 0x27,
+        SB = 0x28,
         SH = 0x29,
         SW = 0x2B,
+        CACHE = 0x2F,
         LD = 0x37,
         SD = 0x3F,
     };
@@ -103,6 +106,7 @@ namespace Opcode {
 
 namespace RegimmOpcode {
     enum : u32 {
+        BGEZL = 0x03,
         BGEZAL = 0x11,
     };
 }
@@ -183,6 +187,8 @@ enum class ALUOpReg {
 enum class BranchOp {
     BEQ,
     BEQL,
+    BLEZL,
+    BGEZL,
     BGEZAL,
     BGTZ,
     BNE,
@@ -204,6 +210,7 @@ enum class LoadStoreOp {
     LHU,
     LW,
     LWU,
+    SB,
     SD,
     SH,
     SW,
@@ -751,6 +758,12 @@ void doBranch(const Instruction instr) {
             case BranchOp::BEQL:
                 std::printf("[%08X:%08X] beql %s, %s, %08llX; %s = %016llX, %s = %016llX\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
                 break;
+            case BranchOp::BLEZL:
+                std::printf("[%08X:%08X] blezl %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
+                break;
+            case BranchOp::BGEZL:
+                std::printf("[%08X:%08X] bgezl %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
+                break;
             case BranchOp::BGEZAL:
                 std::printf("[%08X:%08X] bgezal %s, %08llX; %s = %016llX, ra = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData, getPC<false>());
                 break;
@@ -772,6 +785,12 @@ void doBranch(const Instruction instr) {
             break;
         case BranchOp::BEQL:
             branch(target, rsData == rtData, Register::R0, true);
+            break;
+        case BranchOp::BLEZL:
+            branch(target, (i64)rsData <= 0, Register::R0, true);
+            break;
+        case BranchOp::BGEZL:
+            branch(target, (i64)rsData >= 0, Register::R0, true);
             break;
         case BranchOp::BGEZAL:
             branch(target, (i64)rsData >= 0, Register::RA, false);
@@ -915,6 +934,9 @@ void doLoadStore(const Instruction instr) {
             case LoadStoreOp::LWU:
                 std::printf("[%08X:%08X] lwu %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
                 break;
+            case LoadStoreOp::SB:
+                std::printf("[%08X:%08X] sb %s, %04X(%s); [%08llX] = %02X\n", pc, instr.raw, rtName, imm, baseName, vaddr, (u16)data & 0xFF);
+                break;
             case LoadStoreOp::SD:
                 std::printf("[%08X:%08X] sd %s, %04X(%s); [%08llX] = %016llX\n", pc, instr.raw, rtName, imm, baseName, vaddr, data);
                 break;
@@ -978,6 +1000,9 @@ void doLoadStore(const Instruction instr) {
             }
 
             set(rt, (u64)read<u32>(vaddr));
+            break;
+        case LoadStoreOp::SB:
+            write(vaddr, (u8)get(rt));
             break;
         case LoadStoreOp::SD:
             if (!isAlignedAddress<u64>(vaddr)) {
@@ -1100,6 +1125,9 @@ void doInstruction() {
         case Opcode::REGIMM: {
                 const u32 op = instr.iType.rt;
                 switch (op) {
+                    case RegimmOpcode::BGEZL:
+                        doBranch<BranchOp::BGEZL>(instr);
+                        break;
                     case RegimmOpcode::BGEZAL:
                         doBranch<BranchOp::BGEZAL>(instr);
                         break;
@@ -1158,6 +1186,9 @@ void doInstruction() {
         case Opcode::BNEL:
             doBranch<BranchOp::BNEL>(instr);
             break;
+        case Opcode::BLEZL:
+            doBranch<BranchOp::BLEZL>(instr);
+            break;
         case Opcode::DADDI:
             doALUImmediate<ALUOpImm::DADDI>(instr);
             break;
@@ -1182,11 +1213,17 @@ void doInstruction() {
         case Opcode::LWU:
             doLoadStore<LoadStoreOp::LWU>(instr);
             break;
+        case Opcode::SB:
+            doLoadStore<LoadStoreOp::SB>(instr);
+            break;
         case Opcode::SH:
             doLoadStore<LoadStoreOp::SH>(instr);
             break;
         case Opcode::SW:
             doLoadStore<LoadStoreOp::SW>(instr);
+            break;
+        case Opcode::CACHE:
+            PLOG_WARNING << "CACHE instruction";
             break;
         case Opcode::LD:
             doLoadStore<LoadStoreOp::LD>(instr);
