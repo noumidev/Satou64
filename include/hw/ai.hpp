@@ -15,7 +15,10 @@ namespace IORegister {
         IOBase = 0x4500000,
         DRAMADDR = IOBase + 0x00,
         LENGTH = IOBase + 0x04,
+        CONTROL = IOBase + 0x08,
         STATUS = IOBase + 0x0C,
+        DACRATE = IOBase + 0x10,
+        BITRATE = IOBase + 0x14,
     };
 }
 
