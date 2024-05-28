@@ -124,6 +124,38 @@ u32 readIO(const u64 ioaddr) {
             PLOG_INFO << "STATUS read";
 
             return regs.status.raw;
+        case IORegister::BSDDOM1LAT:
+            PLOG_INFO << "BSDDOM1LAT read";
+
+            return regs.dom[0].bsdlat.raw;
+        case IORegister::BSDDOM1PWD:
+            PLOG_INFO << "BSDDOM1PWD read";
+
+            return regs.dom[0].bsdpwd.raw;
+        case IORegister::BSDDOM1PGS:
+            PLOG_INFO << "BSDDOM1PGS read";
+
+            return regs.dom[0].bsdpgs.raw;
+        case IORegister::BSDDOM1RLS:
+            PLOG_INFO << "BSDDOM1RLS read";
+
+            return regs.dom[0].bsdrls.raw;
+        case IORegister::BSDDOM2LAT:
+            PLOG_INFO << "BSDDOM2LAT read";
+
+            return regs.dom[1].bsdlat.raw;
+        case IORegister::BSDDOM2PWD:
+            PLOG_INFO << "BSDDOM2PWD read";
+
+            return regs.dom[1].bsdpwd.raw;
+        case IORegister::BSDDOM2PGS:
+            PLOG_INFO << "BSDDOM2PGS read";
+
+            return regs.dom[1].bsdpgs.raw;
+        case IORegister::BSDDOM2RLS:
+            PLOG_INFO << "BSDDOM2RLS read";
+
+            return regs.dom[1].bsdrls.raw;
         default:
             PLOG_FATAL << "Unrecognized IO read (address = " << std::hex << ioaddr << ")";
 
