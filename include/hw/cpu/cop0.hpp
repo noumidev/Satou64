@@ -16,6 +16,8 @@ void deinit();
 
 void reset();
 
+bool isCoprocessorUsable(const u32 coprocessor);
+
 // Returns the value of a COP0 register
 template<typename T>
 T get(const u32 idx) requires std::is_unsigned_v<T>;

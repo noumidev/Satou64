@@ -20,7 +20,11 @@ constexpr u32 CONFIG_DEFAULT = 0x6E460;
 // COP0 registers
 namespace Register {
     enum : u32 {
+        Index = 0,
+        EntryLo0 = 2,
+        EntryLo1 = 3,
         Count = 9,
+        EntryHi = 10,
         Compare = 11,
         Status = 12,
         Cause = 13,
@@ -126,6 +130,15 @@ void reset() {
     regs.config.raw = CONFIG_DEFAULT;
 }
 
+bool isCoprocessorUsable(const u32 coprocessor) {
+    // COP0 is always usable in Kernel mode
+    if ((coprocessor == 0) && (regs.status.mode == CPUMode::Kernel)) {
+        return true;
+    }
+
+    return (regs.status.ce & (1 << coprocessor)) != 0;
+}
+
 template<>
 u32 get(const u32 idx) {
     if (!isValidRegisterIndex(idx)) {
@@ -135,6 +148,12 @@ u32 get(const u32 idx) {
     }
 
     switch (idx) {
+        case Register::EntryHi:
+            PLOG_WARNING << "EntryHi read";
+
+            return 0;
+        case Register::Status:
+            return regs.status.raw;
         default:
             PLOG_FATAL << "Unrecognized get32 register " << idx;
 
@@ -167,8 +186,20 @@ void set(const u32 idx, const u32 data) {
     }
 
     switch (idx) {
+        case Register::Index:
+            PLOG_WARNING << "Index write (data = " << std::hex << data << ")";
+            break;
+        case Register::EntryLo0:
+            PLOG_WARNING << "EntryLo0 write (data = " << std::hex << data << ")";
+            break;
+        case Register::EntryLo1:
+            PLOG_WARNING << "EntryLo1 write (data = " << std::hex << data << ")";
+            break;
         case Register::Count:
             regs.count = data;
+            break;
+        case Register::EntryHi:
+            PLOG_WARNING << "EntryHi write (data = " << std::hex << data << ")";
             break;
         case Register::Compare:
             regs.compare = data;
