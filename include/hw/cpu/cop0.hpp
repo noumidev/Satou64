@@ -9,6 +9,8 @@
 
 #include "common/types.hpp"
 
+#include "hw/cpu/cpu.hpp"
+
 namespace hw::cpu::cop0 {
 
 void init();
@@ -25,5 +27,7 @@ T get(const u32 idx) requires std::is_unsigned_v<T>;
 // Sets the value of a COP0 register
 template<typename T>
 void set(const u32 idx, const T data) requires std::is_unsigned_v<T>;
+
+void doInstruction(const Instruction instr);
 
 }

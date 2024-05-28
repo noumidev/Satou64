@@ -15,6 +15,8 @@
 
 namespace hw::cpu::cop0 {
 
+constexpr bool ENABLE_DISASSEMBLER = true;
+
 constexpr u32 CONFIG_DEFAULT = 0x6E460;
 
 // COP0 registers
@@ -23,6 +25,7 @@ namespace Register {
         Index = 0,
         EntryLo0 = 2,
         EntryLo1 = 3,
+        PageMask = 5,
         Count = 9,
         EntryHi = 10,
         Compare = 11,
@@ -46,6 +49,12 @@ namespace CPUMode {
         Kernel = 0,
         Supervisor = 1,
         User = 2,
+    };
+}
+
+namespace Opcode {
+    enum : u32 {
+        TLBWI = 0x02,
     };
 }
 
@@ -154,6 +163,8 @@ u32 get(const u32 idx) {
             return 0;
         case Register::Status:
             return regs.status.raw;
+        case Register::Cause:
+            return regs.cause.raw;
         default:
             PLOG_FATAL << "Unrecognized get32 register " << idx;
 
@@ -194,6 +205,9 @@ void set(const u32 idx, const u32 data) {
             break;
         case Register::EntryLo1:
             PLOG_WARNING << "EntryLo1 write (data = " << std::hex << data << ")";
+            break;
+        case Register::PageMask:
+            PLOG_WARNING << "PageMask write (data = " << std::hex << data << ")";
             break;
         case Register::Count:
             regs.count = data;
@@ -237,6 +251,30 @@ void set(const u32 idx, const u64 data) {
     switch (idx) {
         default:
             PLOG_FATAL << "Unrecognized set64 register " << idx << " (data = " << std::hex << data << ")";
+
+            exit(0);
+    }
+}
+
+void doInstruction(const Instruction instr) {
+    const u32 funct = instr.rType.funct;
+    if constexpr (ENABLE_DISASSEMBLER) {
+        switch (funct) {
+            case Opcode::TLBWI:
+                break;
+            default:
+                PLOG_FATAL << "Unrecognized System Control opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+
+                exit(0);
+        }
+    }
+
+    switch (funct) {
+        case Opcode::TLBWI:
+            PLOG_WARNING << "TLBWI instruction";
+            break;
+        default:
+            PLOG_FATAL << "Unrecognized System Control opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
 
             exit(0);
     }
