@@ -15,6 +15,7 @@
 #include <plog/Log.h>
 
 #include "hw/cpu/cop0.hpp"
+#include "hw/cpu/fpu.hpp"
 
 #include "sys/memory.hpp"
 
@@ -57,6 +58,13 @@ namespace Register {
     };
 }
 
+namespace Coprocessor {
+    enum {
+        SystemControl,
+        FPU,
+    };
+}
+
 // GPR names
 constexpr const char *REG_NAMES[Register::NumberOfRegisters] = {
     "r0", "at", "v0", "v2", "a0", "a1", "a2", "a3",
@@ -74,6 +82,7 @@ namespace Opcode {
         JAL = 0x03,
         BEQ = 0x04,
         BNE = 0x05,
+        BLEZ = 0x06,
         BGTZ = 0x07,
         ADDI = 0x08,
         ADDIU = 0x09,
@@ -84,6 +93,7 @@ namespace Opcode {
         XORI = 0x0E,
         LUI = 0x0F,
         COP0 = 0x10,
+        COP1 = 0x11,
         BEQL = 0x14,
         BNEL = 0x15,
         BLEZL = 0x16,
@@ -106,6 +116,7 @@ namespace Opcode {
 
 namespace RegimmOpcode {
     enum : u32 {
+        BGEZ = 0x01,
         BGEZL = 0x03,
         BGEZAL = 0x11,
     };
@@ -124,7 +135,9 @@ namespace SpecialOpcode {
         MFHI = 0x10,
         MFLO = 0x12,
         DSLLV = 0x14,
+        MULT = 0x18,
         MULTU = 0x19,
+        DIVU = 0x1B,
         ADD = 0x20,
         ADDU = 0x21,
         SUBU = 0x23,
@@ -142,7 +155,12 @@ namespace SpecialOpcode {
 
 namespace CoprocessorOpcode {
     enum : u32 {
+        MF = 0x00,
+        CF = 0x02,
         MT = 0x04,
+        CT = 0x06,
+        CO = 0x10,
+        SINGLE = 0x10,
     };
 }
 
@@ -163,12 +181,14 @@ enum class ALUOpReg {
     ADD,
     ADDU,
     AND,
+    DIVU,
     DSLL,
     DSLLV,
     DSLL32,
     DSRA32,
     MFHI,
     MFLO,
+    MULT,
     MULTU,
     NOR,
     OR,
@@ -187,7 +207,9 @@ enum class ALUOpReg {
 enum class BranchOp {
     BEQ,
     BEQL,
+    BLEZ,
     BLEZL,
+    BGEZ,
     BGEZL,
     BGEZAL,
     BGTZ,
@@ -214,35 +236,6 @@ enum class LoadStoreOp {
     SD,
     SH,
     SW,
-};
-
-// CPU instruction
-union Instruction {
-    u32 raw;
-
-    // Immediate type
-    struct {
-        u32 immediate : 16;
-        u32 rt : 5;
-        u32 rs : 5;
-        u32 op : 6;
-    } iType;
-
-    // Jump type
-    struct {
-        u32 target : 26;
-        u32 op : 6;
-    } jType;
-
-    // Register type
-    struct {
-        u32 funct : 6;
-        u32 sa : 5;
-        u32 rd : 5;
-        u32 rt : 5;
-        u32 rs : 5;
-        u32 op : 6;
-    } rType;
 };
 
 // CPU register file
@@ -584,6 +577,22 @@ void doALURegister(const Instruction instr) {
         case ALUOpReg::AND:
             set(rd, rsData & rtData);
             break;
+        case ALUOpReg::DIVU:
+            {
+                const u32 n = (u32)rsData;
+                const u32 d = (u32)rtData;
+
+                if (d == 0) {
+                    PLOG_ERROR << "DIVU by zero";
+
+                    set(Register::LO, (u32)-1);
+                    set(Register::HI, n);
+                } else {
+                    set(Register::LO, n / d);
+                    set(Register::HI, n % d);
+                }
+            }
+            break;
         case ALUOpReg::DSLL:
             set(rd, rtData << sa);
             break;
@@ -601,6 +610,14 @@ void doALURegister(const Instruction instr) {
             break;
         case ALUOpReg::MFLO:
             set(rd, get(Register::LO));
+            break;
+        case ALUOpReg::MULT:
+            {
+                const u64 res = (u64)(i32)rsData * (u64)(i32)rtData;
+
+                set(Register::LO, (u32)res);
+                set(Register::HI, (u32)(res >> 32));
+            }
             break;
         case ALUOpReg::MULTU:
             {
@@ -667,6 +684,9 @@ void doALURegister(const Instruction instr) {
             case ALUOpReg::AND:
                 std::printf("[%08X:%08X] and %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
                 break;
+            case ALUOpReg::DIVU:
+                std::printf("[%08X:%08X] divu %s, %s; LO = %016llX, HI = %016llX\n", pc, instr.raw, rsName, rtName, get(Register::LO), get(Register::HI));
+                break;
             case ALUOpReg::DSLL:
                 std::printf("[%08X:%08X] dsll %s, %s, %u; %s = %016llX\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
                 break;
@@ -684,6 +704,9 @@ void doALURegister(const Instruction instr) {
                 break;
             case ALUOpReg::MFLO:
                 std::printf("[%08X:%08X] mflo %s; %s = %016llX\n", pc, instr.raw, rdName, rdName, rdData);
+                break;
+            case ALUOpReg::MULT:
+                std::printf("[%08X:%08X] mult %s, %s; LO = %016llX, HI = %016llX\n", pc, instr.raw, rsName, rtName, get(Register::LO), get(Register::HI));
                 break;
             case ALUOpReg::MULTU:
                 std::printf("[%08X:%08X] multu %s, %s; LO = %016llX, HI = %016llX\n", pc, instr.raw, rsName, rtName, get(Register::LO), get(Register::HI));
@@ -758,8 +781,14 @@ void doBranch(const Instruction instr) {
             case BranchOp::BEQL:
                 std::printf("[%08X:%08X] beql %s, %s, %08llX; %s = %016llX, %s = %016llX\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
                 break;
+            case BranchOp::BLEZ:
+                std::printf("[%08X:%08X] blez %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
+                break;
             case BranchOp::BLEZL:
                 std::printf("[%08X:%08X] blezl %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
+                break;
+            case BranchOp::BGEZ:
+                std::printf("[%08X:%08X] bgez %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
                 break;
             case BranchOp::BGEZL:
                 std::printf("[%08X:%08X] bgezl %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
@@ -786,8 +815,14 @@ void doBranch(const Instruction instr) {
         case BranchOp::BEQL:
             branch(target, rsData == rtData, Register::R0, true);
             break;
+        case BranchOp::BLEZ:
+            branch(target, (i64)rsData <= 0, Register::R0, false);
+            break;
         case BranchOp::BLEZL:
             branch(target, (i64)rsData <= 0, Register::R0, true);
+            break;
+        case BranchOp::BGEZ:
+            branch(target, (i64)rsData >= 0, Register::R0, false);
             break;
         case BranchOp::BGEZL:
             branch(target, (i64)rsData >= 0, Register::R0, true);
@@ -809,10 +844,14 @@ void doBranch(const Instruction instr) {
 
 template<int coprocessor>
 void doCoprocessor(const Instruction instr) {
-    if constexpr (coprocessor != 0) {
+    if constexpr (coprocessor > Coprocessor::FPU) {
         PLOG_FATAL << "Unrecognized coprocessor " << coprocessor;
         
         exit(0);
+    }
+
+    if (!cop0::isCoprocessorUsable(coprocessor)) {
+        PLOG_WARNING << "Unimplemented Coprocessor Unusable exception";
     }
 
     const u32 rd = instr.rType.rd;
@@ -827,8 +866,19 @@ void doCoprocessor(const Instruction instr) {
         const u32 pc = getPC<true>();
 
         switch (op) {
+            case CoprocessorOpcode::MF:
+                std::printf("[%08X:%08X] mfc%d %s, %u; %u = %08X\n", pc, instr.raw, coprocessor, rtName, rd, rd, (u32)rtData);
+                break;
+            case CoprocessorOpcode::CF:
+                std::printf("[%08X:%08X] cfc%d %s, %u; %u = %08X\n", pc, instr.raw, coprocessor, rtName, rd, rd, (u32)rtData);
+                break;
             case CoprocessorOpcode::MT:
                 std::printf("[%08X:%08X] mtc%d %s, %u; %u = %08X\n", pc, instr.raw, coprocessor, rtName, rd, rd, (u32)rtData);
+                break;
+            case CoprocessorOpcode::CT:
+                std::printf("[%08X:%08X] ctc%d %s, %u; %u = %08X\n", pc, instr.raw, coprocessor, rtName, rd, rd, (u32)rtData);
+                break;
+            case CoprocessorOpcode::CO:
                 break;
         default:
             PLOG_FATAL << "Unrecognized coprocessor opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
@@ -838,8 +888,50 @@ void doCoprocessor(const Instruction instr) {
     }
 
     switch (op) {
+        case CoprocessorOpcode::MF:
+            switch (coprocessor) {
+                case Coprocessor::SystemControl:
+                    return set(rt, cop0::get<u32>(rd));
+                case Coprocessor::FPU:
+                    return set(rt, fpu::get<u32>(rd));
+            }
+            break;
+        case CoprocessorOpcode::CF:
+            switch (coprocessor) {
+                case Coprocessor::SystemControl:
+                    PLOG_FATAL << "Invalid coprocessor for CFC";
+
+                    exit(0);
+                case Coprocessor::FPU:
+                    return set(rt, fpu::getControl(rd));
+            }
+            break;
         case CoprocessorOpcode::MT:
-            cop0::set(rd, (u32)rtData);
+            switch (coprocessor) {
+                case Coprocessor::SystemControl:
+                    return cop0::set(rd, (u32)rtData);
+                case Coprocessor::FPU:
+                    return fpu::set(rd, (u32)rtData);
+            }
+            break;
+        case CoprocessorOpcode::CT:
+            switch (coprocessor) {
+                case Coprocessor::SystemControl:
+                    PLOG_FATAL << "Invalid coprocessor for CTC";
+
+                    exit(0);
+                case Coprocessor::FPU:
+                    return fpu::setControl(rd, rtData);
+            }
+            break;
+        case CoprocessorOpcode::CO:
+            switch (coprocessor) {
+                case Coprocessor::SystemControl:
+                    return cop0::doInstruction(instr);
+                case Coprocessor::FPU:
+                    // This is CoprocessorOpcode::SINGLE
+                    return fpu::doSingle(instr);
+            }
             break;
         default:
             PLOG_FATAL << "Unrecognized coprocessor opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
@@ -1014,7 +1106,7 @@ void doLoadStore(const Instruction instr) {
             write(vaddr, get(rt));
             break;
         case LoadStoreOp::SH:
-            if (!isAlignedAddress<u32>(vaddr)) {
+            if (!isAlignedAddress<u16>(vaddr)) {
                 PLOG_FATAL << "Unaligned SH address " << std::hex << vaddr;
 
                 exit(0);
@@ -1076,8 +1168,14 @@ void doInstruction() {
                     case SpecialOpcode::DSLLV:
                         doALURegister<ALUOpReg::DSLLV>(instr);
                         break;
+                    case SpecialOpcode::MULT:
+                        doALURegister<ALUOpReg::MULT>(instr);
+                        break;
                     case SpecialOpcode::MULTU:
                         doALURegister<ALUOpReg::MULTU>(instr);
+                        break;
+                    case SpecialOpcode::DIVU:
+                        doALURegister<ALUOpReg::DIVU>(instr);
                         break;
                     case SpecialOpcode::ADD:
                         doALURegister<ALUOpReg::ADD>(instr);
@@ -1125,6 +1223,9 @@ void doInstruction() {
         case Opcode::REGIMM: {
                 const u32 op = instr.iType.rt;
                 switch (op) {
+                    case RegimmOpcode::BGEZ:
+                        doBranch<BranchOp::BGEZ>(instr);
+                        break;
                     case RegimmOpcode::BGEZL:
                         doBranch<BranchOp::BGEZL>(instr);
                         break;
@@ -1149,6 +1250,9 @@ void doInstruction() {
             break;
         case Opcode::BNE:
             doBranch<BranchOp::BNE>(instr);
+            break;
+        case Opcode::BLEZ:
+            doBranch<BranchOp::BLEZ>(instr);
             break;
         case Opcode::BGTZ:
             doBranch<BranchOp::BGTZ>(instr);
@@ -1179,6 +1283,9 @@ void doInstruction() {
             break;
         case Opcode::COP0:
             doCoprocessor<0>(instr);
+            break;
+        case Opcode::COP1:
+            doCoprocessor<1>(instr);
             break;
         case Opcode::BEQL:
             doBranch<BranchOp::BEQL>(instr);
