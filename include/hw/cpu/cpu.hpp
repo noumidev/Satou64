@@ -11,6 +11,35 @@
 
 namespace hw::cpu {
 
+// CPU instruction
+union Instruction {
+    u32 raw;
+
+    // Immediate type
+    struct {
+        u32 immediate : 16;
+        u32 rt : 5;
+        u32 rs : 5;
+        u32 op : 6;
+    } iType;
+
+    // Jump type
+    struct {
+        u32 target : 26;
+        u32 op : 6;
+    } jType;
+
+    // Register type
+    struct {
+        u32 funct : 6;
+        u32 sa : 5;
+        u32 rd : 5;
+        u32 rt : 5;
+        u32 rs : 5;
+        u32 op : 6;
+    } rType;
+};
+
 void init();
 void deinit();
 
