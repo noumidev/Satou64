@@ -57,6 +57,10 @@ u32 readIO(const u64 ioaddr) {
 
 void writeIO(const u64 ioaddr, const u32 data) {
     switch (ioaddr) {
+        case IORegister::STATUS:
+            PLOG_INFO << "STATUS write (data = " << std::hex << data << ")";
+            PLOG_WARNING << "Interrupt flag cleared";
+            break;
         default:
             PLOG_FATAL << "Unrecognized IO write (address = " << std::hex << ioaddr << ", data = " << data << ")";
 
