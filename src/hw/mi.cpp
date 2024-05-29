@@ -57,6 +57,10 @@ u32 readIO(const u64 ioaddr) {
             PLOG_INFO << "VERSION read";
 
             return VERSION;
+        case IORegister::MASK:
+            PLOG_INFO << "MASK read";
+
+            return regs.mask.raw;
         default:
             PLOG_FATAL << "Unrecognized IO read (address = " << std::hex << ioaddr << ")";
 
