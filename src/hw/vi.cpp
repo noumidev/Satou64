@@ -54,6 +54,14 @@ union INTR {
     };
 };
 
+union CURRENT {
+    u32 raw;
+    struct {
+        u32 currentHalfline : 10;
+        u32 : 22;
+    };
+};
+
 union BURST {
     u32 raw;
     struct {
@@ -148,6 +156,7 @@ struct Registers {
     ORIGIN origin;
     WIDTH width;
     INTR intr;
+    CURRENT current;
     BURST burst;
     VSYNC vsync;
     HSYNC hsync;
@@ -171,6 +180,10 @@ void reset() {
 
 u32 readIO(const u64 ioaddr) {
     switch (ioaddr) {
+        case IORegister::CURRENT:
+            PLOG_INFO << "CURRENT read";
+
+            return regs.current.currentHalfline;
         default:
             PLOG_FATAL << "Unrecognized IO read (address = " << std::hex << ioaddr << ")";
 
