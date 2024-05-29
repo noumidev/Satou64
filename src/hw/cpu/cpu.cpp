@@ -109,6 +109,7 @@ namespace Opcode {
         SH = 0x29,
         SW = 0x2B,
         CACHE = 0x2F,
+        LWC1 = 0x31,
         LD = 0x37,
         SD = 0x3F,
     };
@@ -133,10 +134,13 @@ namespace SpecialOpcode {
         JR = 0x08,
         JALR = 0x09,
         MFHI = 0x10,
+        MTHI = 0x11,
         MFLO = 0x12,
+        MTLO = 0x13,
         DSLLV = 0x14,
         MULT = 0x18,
         MULTU = 0x19,
+        DIV = 0x1A,
         DIVU = 0x1B,
         ADD = 0x20,
         ADDU = 0x21,
@@ -159,8 +163,17 @@ namespace CoprocessorOpcode {
         CF = 0x02,
         MT = 0x04,
         CT = 0x06,
+        BC = 0x08,
         CO = 0x10,
         SINGLE = 0x10,
+        DOUBLE = 0x11,
+        WORD = 0x14,
+    };
+}
+
+namespace CoprocessorBranchOpcode {
+    enum : u32 {
+        BCTL = 3,
     };
 }
 
@@ -181,6 +194,7 @@ enum class ALUOpReg {
     ADD,
     ADDU,
     AND,
+    DIV,
     DIVU,
     DSLL,
     DSLLV,
@@ -188,6 +202,8 @@ enum class ALUOpReg {
     DSRA32,
     MFHI,
     MFLO,
+    MTHI,
+    MTLO,
     MULT,
     MULTU,
     NOR,
@@ -205,6 +221,7 @@ enum class ALUOpReg {
 };
 
 enum class BranchOp {
+    BC1TL,
     BEQ,
     BEQL,
     BLEZ,
@@ -231,6 +248,7 @@ enum class LoadStoreOp {
     LH,
     LHU,
     LW,
+    LWC1,
     LWU,
     SB,
     SD,
@@ -577,6 +595,30 @@ void doALURegister(const Instruction instr) {
         case ALUOpReg::AND:
             set(rd, rsData & rtData);
             break;
+        case ALUOpReg::DIV:
+            {
+                const i32 n = (i32)rsData;
+                const i32 d = (i32)rtData;
+
+                if (d == 0) {
+                    PLOG_ERROR << "DIVU by zero";
+
+                    if (n < 0) {
+                        set(Register::LO, (u32)1);
+                    } else {
+                        set(Register::LO, (u32)-1);
+                    }
+
+                    set(Register::HI, (u32)n);
+                } else if ((n == (1 << 31)) && (d == -1)) {
+                    set(Register::LO, 1U << 31);
+                    set(Register::HI, (u32)0);
+                } else {
+                    set(Register::LO, (u32)(n / d));
+                    set(Register::HI, (u32)(n % d));
+                }
+            }
+            break;
         case ALUOpReg::DIVU:
             {
                 const u32 n = (u32)rsData;
@@ -610,6 +652,12 @@ void doALURegister(const Instruction instr) {
             break;
         case ALUOpReg::MFLO:
             set(rd, get(Register::LO));
+            break;
+        case ALUOpReg::MTHI:
+            set(Register::HI, rtData);
+            break;
+        case ALUOpReg::MTLO:
+            set(Register::LO, rsData);
             break;
         case ALUOpReg::MULT:
             {
@@ -684,6 +732,9 @@ void doALURegister(const Instruction instr) {
             case ALUOpReg::AND:
                 std::printf("[%08X:%08X] and %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
                 break;
+            case ALUOpReg::DIV:
+                std::printf("[%08X:%08X] div %s, %s; LO = %016llX, HI = %016llX\n", pc, instr.raw, rsName, rtName, get(Register::LO), get(Register::HI));
+                break;
             case ALUOpReg::DIVU:
                 std::printf("[%08X:%08X] divu %s, %s; LO = %016llX, HI = %016llX\n", pc, instr.raw, rsName, rtName, get(Register::LO), get(Register::HI));
                 break;
@@ -704,6 +755,12 @@ void doALURegister(const Instruction instr) {
                 break;
             case ALUOpReg::MFLO:
                 std::printf("[%08X:%08X] mflo %s; %s = %016llX\n", pc, instr.raw, rdName, rdName, rdData);
+                break;
+            case ALUOpReg::MTHI:
+                std::printf("[%08X:%08X] mthi %s; HI = %016llX\n", pc, instr.raw, rsName, rsData);
+                break;
+            case ALUOpReg::MTLO:
+                std::printf("[%08X:%08X] mtlo %s; LO = %016llX\n", pc, instr.raw, rsName, rsData);
                 break;
             case ALUOpReg::MULT:
                 std::printf("[%08X:%08X] mult %s, %s; LO = %016llX, HI = %016llX\n", pc, instr.raw, rsName, rtName, get(Register::LO), get(Register::HI));
@@ -775,6 +832,9 @@ void doBranch(const Instruction instr) {
         const u32 pc = getPC<true>();
 
         switch (op) {
+            case BranchOp::BC1TL:
+                std::printf("[%08X:%08X] bc1tl %08llX\n", pc, instr.raw, target);
+                break;
             case BranchOp::BEQ:
                 std::printf("[%08X:%08X] beq %s, %s, %08llX; %s = %016llX, %s = %016llX\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
                 break;
@@ -809,6 +869,9 @@ void doBranch(const Instruction instr) {
     }
 
     switch (op) {
+        case BranchOp::BC1TL:
+            branch(target, fpu::getCondition(), Register::R0, true);
+            break;
         case BranchOp::BEQ:
             branch(target, rsData == rtData, Register::R0, false);
             break;
@@ -878,6 +941,7 @@ void doCoprocessor(const Instruction instr) {
             case CoprocessorOpcode::CT:
                 std::printf("[%08X:%08X] ctc%d %s, %u; %u = %08X\n", pc, instr.raw, coprocessor, rtName, rd, rd, (u32)rtData);
                 break;
+            case CoprocessorOpcode::BC:
             case CoprocessorOpcode::CO:
                 break;
         default:
@@ -924,6 +988,27 @@ void doCoprocessor(const Instruction instr) {
                     return fpu::setControl(rd, rtData);
             }
             break;
+        case CoprocessorOpcode::BC:
+            {
+                const u32 op = instr.rType.rt;
+                switch (op) {
+                    case CoprocessorBranchOpcode::BCTL:
+                        switch (coprocessor) {
+                            case Coprocessor::SystemControl:
+                                PLOG_FATAL << "Invalid coprocessor for BCTL";
+
+                                exit(0);
+                            case Coprocessor::FPU:
+                                return doBranch<BranchOp::BC1TL>(instr);
+                        }
+                        break;
+                    default:
+                        PLOG_FATAL << "Unrecognized coprocessor branch opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+
+                        exit(0);
+                }
+            }
+            break;
         case CoprocessorOpcode::CO:
             switch (coprocessor) {
                 case Coprocessor::SystemControl:
@@ -931,6 +1016,26 @@ void doCoprocessor(const Instruction instr) {
                 case Coprocessor::FPU:
                     // This is CoprocessorOpcode::SINGLE
                     return fpu::doSingle(instr);
+            }
+            break;
+        case CoprocessorOpcode::DOUBLE:
+            switch (coprocessor) {
+                case Coprocessor::SystemControl:
+                    PLOG_FATAL << "Invalid coprocessor for DOUBLE";
+
+                    exit(0);
+                case Coprocessor::FPU:
+                    return fpu::doDouble(instr);
+            }
+            break;
+        case CoprocessorOpcode::WORD:
+            switch (coprocessor) {
+                case Coprocessor::SystemControl:
+                    PLOG_FATAL << "Invalid coprocessor for WORD";
+
+                    exit(0);
+                case Coprocessor::FPU:
+                    return fpu::doWord(instr);
             }
             break;
         default:
@@ -1023,6 +1128,9 @@ void doLoadStore(const Instruction instr) {
             case LoadStoreOp::LW:
                 std::printf("[%08X:%08X] lw %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
                 break;
+            case LoadStoreOp::LWC1:
+                std::printf("[%08X:%08X] lwc1 %u, %04X(%s); %u = [%08llX]\n", pc, instr.raw, rt, imm, baseName, rt, vaddr);
+                break;
             case LoadStoreOp::LWU:
                 std::printf("[%08X:%08X] lwu %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
                 break;
@@ -1083,6 +1191,19 @@ void doLoadStore(const Instruction instr) {
             }
 
             set(rt, read<u32>(vaddr));
+            break;
+        case LoadStoreOp::LWC1:
+            if (!cop0::isCoprocessorUsable(Coprocessor::FPU)) {
+                PLOG_WARNING << "Unimplemented Coprocessor Unusable exception";
+            }
+
+            if (!isAlignedAddress<u32>(vaddr)) {
+                PLOG_FATAL << "Unaligned LWC1 address " << std::hex << vaddr;
+
+                exit(0);
+            }
+
+            fpu::set(rt, read<u32>(vaddr));
             break;
         case LoadStoreOp::LWU:
             if (!isAlignedAddress<u32>(vaddr)) {
@@ -1162,8 +1283,14 @@ void doInstruction() {
                     case SpecialOpcode::MFHI:
                         doALURegister<ALUOpReg::MFHI>(instr);
                         break;
+                    case SpecialOpcode::MTHI:
+                        doALURegister<ALUOpReg::MTHI>(instr);
+                        break;
                     case SpecialOpcode::MFLO:
                         doALURegister<ALUOpReg::MFLO>(instr);
+                        break;
+                    case SpecialOpcode::MTLO:
+                        doALURegister<ALUOpReg::MTLO>(instr);
                         break;
                     case SpecialOpcode::DSLLV:
                         doALURegister<ALUOpReg::DSLLV>(instr);
@@ -1173,6 +1300,9 @@ void doInstruction() {
                         break;
                     case SpecialOpcode::MULTU:
                         doALURegister<ALUOpReg::MULTU>(instr);
+                        break;
+                    case SpecialOpcode::DIV:
+                        doALURegister<ALUOpReg::DIV>(instr);
                         break;
                     case SpecialOpcode::DIVU:
                         doALURegister<ALUOpReg::DIVU>(instr);
@@ -1331,6 +1461,9 @@ void doInstruction() {
             break;
         case Opcode::CACHE:
             PLOG_WARNING << "CACHE instruction";
+            break;
+        case Opcode::LWC1:
+            doLoadStore<LoadStoreOp::LWC1>(instr);
             break;
         case Opcode::LD:
             doLoadStore<LoadStoreOp::LD>(instr);
