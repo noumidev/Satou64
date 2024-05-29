@@ -19,6 +19,7 @@ void deinit();
 void reset();
 
 bool isCoprocessorUsable(const u32 coprocessor);
+bool isLargeFPURegisterFile();
 
 // Returns the value of a COP0 register
 template<typename T>

@@ -5,6 +5,7 @@
 
 #include "hw/cpu/cop0.hpp"
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ios>
@@ -31,6 +32,7 @@ namespace Register {
         Compare = 11,
         Status = 12,
         Cause = 13,
+        EPC = 14,
         Config = 16,
         TagLo = 28,
         TagHi = 29,
@@ -55,6 +57,7 @@ namespace CPUMode {
 namespace Opcode {
     enum : u32 {
         TLBWI = 0x02,
+        ERET = 0x18,
     };
 }
 
@@ -121,6 +124,7 @@ struct Registers {
     u32 compare;
     Status status;
     Cause cause;
+    u64 epc;
     Config config;
 };
 
@@ -146,6 +150,10 @@ bool isCoprocessorUsable(const u32 coprocessor) {
     }
 
     return (regs.status.ce & (1 << coprocessor)) != 0;
+}
+
+bool isLargeFPURegisterFile() {
+    return regs.status.fr != 0;
 }
 
 template<>
@@ -224,6 +232,9 @@ void set(const u32 idx, const u32 data) {
         case Register::Cause:
             PLOG_WARNING << "Cause write (data = " << std::hex << data << ")";
             break;
+        case Register::EPC:
+            regs.epc = (i32)data;
+            break;
         case Register::Config:
             regs.config.raw = (data & WriteMask::Config) | (regs.config.raw & ~WriteMask::Config);
             break;
@@ -259,8 +270,12 @@ void set(const u32 idx, const u64 data) {
 void doInstruction(const Instruction instr) {
     const u32 funct = instr.rType.funct;
     if constexpr (ENABLE_DISASSEMBLER) {
+        const u32 pc = getPC<true>();
         switch (funct) {
             case Opcode::TLBWI:
+                break;
+            case Opcode::ERET:
+                std::printf("[%08X:%08X] eret\n", pc, instr.raw);
                 break;
             default:
                 PLOG_FATAL << "Unrecognized System Control opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
@@ -272,6 +287,19 @@ void doInstruction(const Instruction instr) {
     switch (funct) {
         case Opcode::TLBWI:
             PLOG_WARNING << "TLBWI instruction";
+            break;
+        case Opcode::ERET:
+            if (regs.status.errorLevel != 0) {
+                PLOG_FATAL << "Unimplented return from Error";
+
+                exit(0);
+            } else {
+                regs.status.exceptionLevel = 0;
+
+                setPC<false>(regs.epc);
+            }
+
+            // TODO: clear Load Linked bit
             break;
         default:
             PLOG_FATAL << "Unrecognized System Control opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
