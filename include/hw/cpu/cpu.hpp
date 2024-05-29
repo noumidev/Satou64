@@ -38,6 +38,16 @@ union Instruction {
         u32 rs : 5;
         u32 op : 6;
     } rType;
+
+    // FPU instruction
+    struct {
+        u32 funct : 6;
+        u32 fd : 5;
+        u32 fs : 5;
+        u32 ft : 5;
+        u32 fmt : 5;
+        u32 op : 6;
+    } fType;
 };
 
 void init();
