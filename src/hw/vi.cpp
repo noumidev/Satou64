@@ -11,9 +11,19 @@
 
 #include <plog/Log.h>
 
+#include "hw/mi.hpp"
+
 #include "renderer/renderer.hpp"
 
+#include "sys/emulator.hpp"
+#include "sys/scheduler.hpp"
+
 namespace hw::vi {
+
+constexpr u64 HALFLINES_PER_FRAME = 1024;
+
+constexpr i64 CYCLES_PER_FRAME = sys::scheduler::CPU_FREQUENCY / 60;
+constexpr i64 CYCLES_PER_HALFLINE = CYCLES_PER_FRAME / HALFLINES_PER_FRAME;
 
 union CONTROL {
     u32 raw;
@@ -170,20 +180,28 @@ struct Registers {
 
 Registers regs;
 
-void init() {}
+u64 idDoHBLANK, idDoVBLANK;
+
+void init() {
+    idDoHBLANK = sys::scheduler::registerEvent([](int) { doHBLANK(); });
+    idDoVBLANK = sys::scheduler::registerEvent([](int) { doVBLANK(); });
+}
 
 void deinit() {}
 
 void reset() {
     std::memset(&regs, 0, sizeof(Registers));
+    
+    sys::scheduler::addEvent(idDoHBLANK, 0, CYCLES_PER_HALFLINE);
+    sys::scheduler::addEvent(idDoVBLANK, 0, CYCLES_PER_FRAME);
 }
 
 u32 readIO(const u64 ioaddr) {
     switch (ioaddr) {
         case IORegister::CURRENT:
-            PLOG_INFO << "CURRENT read";
+            // PLOG_INFO << "CURRENT read";
 
-            return regs.current.currentHalfline;
+            return regs.current.raw;
         default:
             PLOG_FATAL << "Unrecognized IO read (address = " << std::hex << ioaddr << ")";
 
@@ -226,7 +244,7 @@ void writeIO(const u64 ioaddr, const u32 data) {
         case IORegister::CURRENT:
             PLOG_INFO << "CURRENT write (data = " << std::hex << data << ")";
 
-            // TODO: clear VI interrupt
+            mi::clearInterrupt(mi::InterruptSource::VI);
             break;
         case IORegister::BURST:
             PLOG_INFO << "BURST write (data = " << std::hex << data << ")";
@@ -278,6 +296,22 @@ void writeIO(const u64 ioaddr, const u32 data) {
 
             exit(0);
     }
+}
+
+void doHBLANK() {
+    // Increment CURRENT by one halfline
+    regs.current.currentHalfline++;
+    if (regs.current.currentHalfline == regs.intr.line) {
+        mi::requestInterrupt(mi::InterruptSource::VI);
+    }
+
+    sys::scheduler::addEvent(idDoHBLANK, 0, CYCLES_PER_HALFLINE);
+}
+
+void doVBLANK() {
+    sys::emulator::finishFrame();
+
+    sys::scheduler::addEvent(idDoVBLANK, 0, CYCLES_PER_FRAME);
 }
 
 }

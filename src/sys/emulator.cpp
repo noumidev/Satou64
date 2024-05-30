@@ -25,11 +25,11 @@
 #include "renderer/renderer.hpp"
 
 #include "sys/memory.hpp"
+#include "sys/scheduler.hpp"
 
 namespace sys::emulator {
 
-constexpr i64 CPU_FREQUENCY = 93750000;
-constexpr i64 CPU_CYCLES_PER_FRAME = CPU_FREQUENCY / 60;
+bool isRunning;
 
 void init(const char *bootPath, const char *pifPath, const char *romPath) {
     PLOG_INFO << "Boot ROM path = " << bootPath;
@@ -39,6 +39,7 @@ void init(const char *bootPath, const char *pifPath, const char *romPath) {
     renderer::init();
 
     sys::memory::init(bootPath, romPath);
+    sys::scheduler::init();
 
     hw::pif::memory::init(pifPath);
 
@@ -53,10 +54,13 @@ void init(const char *bootPath, const char *pifPath, const char *romPath) {
     hw::si::init();
     hw::sp::init();
     hw::vi::init();
+
+    isRunning = true;
 }
 
 void deinit() {
     sys::memory::deinit();
+    sys::scheduler::deinit();
 
     hw::pif::memory::deinit();
 
@@ -76,21 +80,16 @@ void deinit() {
 }
 
 void run() {
-    while (true) {
-        hw::pif::run(CPU_CYCLES_PER_FRAME >> 5);
-        hw::cpu::run(CPU_CYCLES_PER_FRAME);
+    // Give PIF-NUS a headstart to simulate the slowness of excuting code from the boot ROM
+    hw::pif::run(scheduler::CPU_FREQUENCY / 60);
 
-        renderer::drawFrameBuffer(hw::vi::getOrigin(), hw::vi::getFormat());
+    while (isRunning) {
+        const i64 cycles = scheduler::getRunCycles();
 
-        SDL_Event event;
-        while (SDL_PollEvent(&event) != 0) {
-            switch (event.type) {
-                case SDL_QUIT:
-                    return;
-                default:
-                    break;
-            }
-        }
+        hw::pif::run(cycles / 6);
+        hw::cpu::run(cycles);
+
+        scheduler::run(cycles);
     }
 }
 
@@ -98,6 +97,7 @@ void reset() {
     renderer::reset();
 
     sys::memory::reset();
+    sys::scheduler::reset();
 
     hw::pif::memory::reset();
 
@@ -112,6 +112,21 @@ void reset() {
     hw::si::reset();
     hw::sp::reset();
     hw::vi::reset();
+}
+
+void finishFrame() {
+    renderer::drawFrameBuffer(hw::vi::getOrigin(), hw::vi::getFormat());
+
+    SDL_Event event;
+    while (SDL_PollEvent(&event) != 0) {
+        switch (event.type) {
+            case SDL_QUIT:
+                isRunning = false;
+                break;
+            default:
+                break;
+        }
+    }
 }
 
 }

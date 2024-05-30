@@ -49,6 +49,7 @@ set(SOURCES
     src/renderer/renderer.cpp
     src/sys/emulator.cpp
     src/sys/memory.cpp
+    src/sys/scheduler.cpp
 )
 
 # Set header files
@@ -72,6 +73,7 @@ set(HEADERS
     include/renderer/renderer.hpp
     include/sys/emulator.hpp
     include/sys/memory.hpp
+    include/sys/scheduler.hpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})

@@ -42,4 +42,7 @@ u32 getOrigin();
 
 void writeIO(const u64 ioaddr, const u32 data);
 
+void doHBLANK();
+void doVBLANK();
+
 }
