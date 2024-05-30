@@ -165,6 +165,8 @@ u32 get(const u32 idx) {
     }
 
     switch (idx) {
+        case Register::Count:
+            return regs.count;
         case Register::EntryHi:
             PLOG_WARNING << "EntryHi read";
 
