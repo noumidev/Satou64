@@ -11,6 +11,12 @@
 
 namespace hw::cpu {
 
+namespace ExceptionCode {
+    enum : u32 {
+        Interrupt = 0x00,
+    };
+}
+
 // CPU instruction
 union Instruction {
     u32 raw;
@@ -53,9 +59,9 @@ union Instruction {
 void init();
 void deinit();
 
-void run();
-
 void reset();
+
+void raiseException(const u32 exceptionCode);
 
 // Returns true if register index is valid
 bool isValidRegisterIndex(const u32 idx);

@@ -277,8 +277,6 @@ void deinit() {
     cop0::deinit();
 }
 
-void run() {}
-
 void reset() {
     cop0::reset();
 
@@ -289,6 +287,32 @@ void reset() {
     setPC<false>(ADDR_RESET_VECTOR);
 
     inDelaySlot[0] = inDelaySlot[1] = false;
+}
+
+void raiseException(const u32 exceptionCode) {
+    PLOG_VERBOSE << "Exception raised (exception code = " << std::hex << exceptionCode << ")";
+
+    cop0::setExceptionCode(exceptionCode);
+
+    u64 vectorBase = 0xFFFFFFFF80000180;
+    if (cop0::getBootExceptionVectors()) {
+        PLOG_FATAL << "Unimplemented boot exception vectors";
+
+        exit(0);
+    }
+
+    if (!cop0::getExceptionLevel()) {
+        if (inDelaySlot[0]) {
+            cop0::setExceptionPC(regFile.cpc - 4);
+            cop0::setBranchDelay();
+        } else {
+            cop0::setExceptionPC(regFile.cpc);
+        }
+    }
+
+    cop0::setExceptionLevel();
+
+    setPC<false>(vectorBase);
 }
 
 bool isValidRegisterIndex(const u32 idx) {
@@ -353,6 +377,8 @@ void setPC(const u64 addr) {
     } else {
         regFile.pc = addr;
         regFile.npc = addr + sizeof(Instruction);
+
+        inDelaySlot[0] = inDelaySlot[1] = false;
     }
 }
 

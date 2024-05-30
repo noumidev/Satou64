@@ -11,9 +11,17 @@
 
 #include <plog/Log.h>
 
+#include "hw/cpu/cop0.hpp"
+
 namespace hw::mi {
 
 constexpr u32 VERSION = 0x2020102;
+
+constexpr u32 INTERRUPT_MASK = 0x3F;
+
+constexpr const char *INTERRUPT_NAMES[InterruptSource::NumberOfInterruptSources] = {
+    "SP", "SI", "AI", "VI", "PI", "DP",
+};
 
 struct MODE {
     u32 repeatCount;
@@ -21,6 +29,19 @@ struct MODE {
     bool repeatMode;
     bool ebusMode;
     bool upperMode;
+};
+
+union INTERRUPT {
+    u32 raw;
+    struct {
+        u32 spPending : 1;
+        u32 siPending : 1;
+        u32 aiPending : 1;
+        u32 viPending : 1;
+        u32 piPending : 1;
+        u32 dpPending : 1;
+        u32 : 26;
+    };
 };
 
 union MASK {
@@ -38,6 +59,7 @@ union MASK {
 
 struct Registers {
     MODE mode;
+    INTERRUPT interrupt;
     MASK mask;
 };
 
@@ -57,6 +79,10 @@ u32 readIO(const u64 ioaddr) {
             PLOG_INFO << "VERSION read";
 
             return VERSION;
+        case IORegister::INTERRUPT:
+            PLOG_INFO << "INTERRUPT read";
+
+            return regs.interrupt.raw;
         case IORegister::MASK:
             PLOG_INFO << "MASK read";
 
@@ -232,6 +258,30 @@ void writeIO(const u64 ioaddr, const u32 data) {
             PLOG_FATAL << "Unrecognized IO write (address = " << std::hex << ioaddr << ", data = " << data << ")";
 
             exit(0);
+    }
+}
+
+void requestInterrupt(const u32 source) {
+    PLOG_VERBOSE << INTERRUPT_NAMES[source] << " interrupt requested";
+
+    regs.interrupt.raw |= 1 << source;
+
+    setInterruptPending();
+}
+
+void clearInterrupt(const u32 source) {
+    // PLOG_VERBOSE << INTERRUPT_NAMES[source] << " interrupt cleared";
+
+    regs.interrupt.raw &= ~(1 << source);
+
+    setInterruptPending();
+}
+
+void setInterruptPending() {
+    if ((regs.interrupt.raw & regs.mask.raw & INTERRUPT_MASK) != 0) {
+        cpu::cop0::setInterruptPending(cpu::cop0::InterruptNumber::External);
+    } else {
+        cpu::cop0::clearInterruptPending(cpu::cop0::InterruptNumber::External);
     }
 }
 

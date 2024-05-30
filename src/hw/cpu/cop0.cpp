@@ -175,6 +175,8 @@ u32 get(const u32 idx) {
             return regs.status.raw;
         case Register::Cause:
             return regs.cause.raw;
+        case Register::EPC:
+            return regs.epc;
         default:
             PLOG_FATAL << "Unrecognized get32 register " << idx;
 
@@ -230,6 +232,8 @@ void set(const u32 idx, const u32 data) {
             break;
         case Register::Status:
             regs.status.raw = data;
+
+            checkInterruptPending();
             break;
         case Register::Cause:
             PLOG_WARNING << "Cause write (data = " << std::hex << data << ")";
@@ -267,6 +271,46 @@ void set(const u32 idx, const u64 data) {
 
             exit(0);
     }
+}
+
+void setInterruptPending(const u32 interruptNumber) {
+    regs.cause.interruptPending |= 1 << interruptNumber;
+
+    checkInterruptPending();
+}
+
+void clearInterruptPending(const u32 interruptNumber) {
+    regs.cause.interruptPending &= ~(1 << interruptNumber);
+}
+
+void checkInterruptPending() {
+    if ((regs.status.interruptEnable != 0) && ((regs.cause.interruptPending & regs.status.interruptMask) != 0) && (regs.status.exceptionLevel == 0) && (regs.status.errorLevel == 0)) {
+        raiseException(ExceptionCode::Interrupt);
+    }
+}
+
+bool getBootExceptionVectors() {
+    return regs.status.bootExceptionVectors != 0;
+}
+
+bool getExceptionLevel() {
+    return regs.status.exceptionLevel != 0;
+}
+
+void setBranchDelay() {
+    regs.cause.branchDelay = 1;
+}
+
+void setExceptionCode(const u32 exceptionCode) {
+    regs.cause.exceptionCode = exceptionCode;
+}
+
+void setExceptionLevel() {
+    regs.status.exceptionLevel = 1;
+}
+
+void setExceptionPC(const u64 epc) {
+    regs.epc = epc;
 }
 
 void doInstruction(const Instruction instr) {
