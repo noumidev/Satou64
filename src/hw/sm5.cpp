@@ -30,12 +30,14 @@ namespace Opcode {
         EXBL = 0x67,
         EX = 0x68,
         PAT = 0x6A,
+        TB = 0x6D,
         TC = 0x6E,
         TAM = 0x6F,
         OUT = 0x75,
         INCB = 0x78,
         COMA = 0x79,
         ADD = 0x7A,
+        ADC = 0x7B,
         DECB = 0x7C,
         RTN = 0x7D,
         RTNS = 0x7E,
@@ -89,7 +91,7 @@ void SM5::reset() {
 u8 SM5::fetch() {
     const u8 data = read(regs.pc.raw);
 
-    skip();
+    regs.pc.pl++;
 
     return data;
 }
@@ -171,7 +173,27 @@ void SM5::pop() {
 }
 
 void SM5::skip() {
-    regs.pc.pl++;
+    // This skips all 1-byte opcodes
+    const u8 op = fetch() & 0xF0;
+
+    // Skip 2-byte opcodes
+    if ((op == Opcode::TL) || (op == Opcode::CALL)) {
+        regs.pc.pl++;
+    }
+}
+
+void SM5::ADC(const Instruction instr) {
+    const u8 res = regs.xa.a + readRAM(regs.b.raw) + (u8)regs.carry;
+
+    regs.xa.a = res & 0xF;
+
+    if (res > 0xF) {
+        regs.carry = true;
+    }
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] adc\n", regs.oldPC, instr.raw);
+    }
 }
 
 void SM5::ADD(const Instruction instr) {
@@ -500,6 +522,18 @@ void SM5::TAM(const Instruction instr) {
     }
 }
 
+void SM5::TB(const Instruction instr) {
+    if (regs.ie.ifb) {
+        skip();
+    }
+
+    regs.ie.ifb = 0;
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] tb\n", regs.oldPC, instr.raw);
+    }
+}
+
 void SM5::TC(const Instruction instr) {
     if (regs.carry) {
         skip();
@@ -525,6 +559,10 @@ void SM5::TM(const Instruction instr) {
 
     if constexpr (ENABLE_DISASSEMBLER) {
         std::printf("[%03X:%02X] tm #%x\n", regs.oldPC, instr.raw, imm);
+    }
+
+    if (regs.oldPC == 0xF7) {
+        return;
     }
 
     if ((readRAM(regs.b.raw) & (1 << imm)) != 0) {
@@ -650,6 +688,8 @@ void SM5::doInstruction() {
             return EX(instr);
         case Opcode::PAT:
             return PAT(instr);
+        case Opcode::TB:
+            return TB(instr);
         case Opcode::TC:
             return TC(instr);
         case Opcode::TAM:
@@ -662,6 +702,8 @@ void SM5::doInstruction() {
             return COMA(instr);
         case Opcode::ADD:
             return ADD(instr);
+        case Opcode::ADC:
+            return ADC(instr);
         case Opcode::DECB:
             return DECB(instr);
         case Opcode::RTN:

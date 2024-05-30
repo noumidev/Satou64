@@ -104,6 +104,7 @@ private:
 
     void skip();
 
+    void ADC(const Instruction instr);
     void ADD(const Instruction instr);
     void ADX(const Instruction instr);
     void ATX(const Instruction instr);
@@ -133,6 +134,7 @@ private:
     void SC(const Instruction instr);
     void SM(const Instruction instr);
     void TAM(const Instruction instr);
+    void TB(const Instruction instr);
     void TC(const Instruction instr);
     void TL(const Instruction instr);
     void TM(const Instruction instr);
