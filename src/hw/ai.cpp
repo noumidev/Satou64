@@ -73,6 +73,10 @@ void reset() {
 
 u32 readIO(const u64 ioaddr) {
     switch (ioaddr) {
+        case IORegister::STATUS:
+            PLOG_WARNING << "STATUS read";
+
+            return 0;
         default:
             PLOG_FATAL << "Unrecognized IO read (address = " << std::hex << ioaddr << ")";
 
