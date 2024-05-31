@@ -41,6 +41,8 @@ void clearInterruptPending(const u32 interruptNumber);
 
 void checkInterruptPending();
 
+void clearBranchDelay();
+
 bool getBootExceptionVectors();
 bool getExceptionLevel();
 
@@ -50,5 +52,7 @@ void setExceptionLevel();
 void setExceptionPC(const u64 epc);
 
 void doInstruction(const Instruction instr);
+
+void incrementCount();
 
 }

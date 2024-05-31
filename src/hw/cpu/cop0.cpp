@@ -171,6 +171,8 @@ u32 get(const u32 idx) {
             PLOG_WARNING << "EntryHi read";
 
             return 0;
+        case Register::Compare:
+            return regs.compare;
         case Register::Status:
             return regs.status.raw;
         case Register::Cause:
@@ -229,6 +231,8 @@ void set(const u32 idx, const u32 data) {
             break;
         case Register::Compare:
             regs.compare = data;
+
+            clearInterruptPending(InterruptNumber::Compare);
             break;
         case Register::Status:
             regs.status.raw = data;
@@ -287,6 +291,10 @@ void checkInterruptPending() {
     if ((regs.status.interruptEnable != 0) && ((regs.cause.interruptPending & regs.status.interruptMask) != 0) && (regs.status.exceptionLevel == 0) && (regs.status.errorLevel == 0)) {
         raiseException(ExceptionCode::Interrupt);
     }
+}
+
+void clearBranchDelay() {
+    regs.cause.branchDelay = 0;
 }
 
 bool getBootExceptionVectors() {
@@ -351,6 +359,16 @@ void doInstruction(const Instruction instr) {
             PLOG_FATAL << "Unrecognized System Control opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
 
             exit(0);
+    }
+}
+
+void incrementCount() {
+    regs.count++;
+
+    if ((regs.count >> 1) == regs.compare) {
+        PLOG_VERBOSE << "Compare interrupt raised";
+
+        setInterruptPending(InterruptNumber::Compare);
     }
 }
 
