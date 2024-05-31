@@ -101,13 +101,17 @@ namespace Opcode {
         DADDIU = 0x19,
         LB = 0x20,
         LH = 0x21,
+        LWL = 0x22,
         LW = 0x23,
         LBU = 0x24,
         LHU = 0x25,
+        LWR = 0x26,
         LWU = 0x27,
         SB = 0x28,
         SH = 0x29,
+        SWL = 0x2A,
         SW = 0x2B,
+        SWR = 0x2E,
         CACHE = 0x2F,
         LWC1 = 0x31,
         LD = 0x37,
@@ -249,11 +253,15 @@ enum class LoadStoreOp {
     LHU,
     LW,
     LWC1,
+    LWL,
+    LWR,
     LWU,
     SB,
     SD,
     SH,
     SW,
+    SWL,
+    SWR,
 };
 
 // CPU register file
@@ -301,12 +309,17 @@ void raiseException(const u32 exceptionCode) {
         exit(0);
     }
 
+    if (exceptionCode == ExceptionCode::Interrupt) {
+        advanceDelaySlot();
+    }
+
     if (!cop0::getExceptionLevel()) {
         if (inDelaySlot[0]) {
-            cop0::setExceptionPC(regFile.cpc - 4);
+            cop0::setExceptionPC(regFile.pc - 4);
             cop0::setBranchDelay();
         } else {
-            cop0::setExceptionPC(regFile.cpc);
+            cop0::setExceptionPC(regFile.pc);
+            cop0::clearBranchDelay();
         }
     }
 
@@ -1157,6 +1170,12 @@ void doLoadStore(const Instruction instr) {
             case LoadStoreOp::LWC1:
                 std::printf("[%08X:%08X] lwc1 %u, %04X(%s); %u = [%08llX]\n", pc, instr.raw, rt, imm, baseName, rt, vaddr);
                 break;
+            case LoadStoreOp::LWL:
+                std::printf("[%08X:%08X] lwl %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
+                break;
+            case LoadStoreOp::LWR:
+                std::printf("[%08X:%08X] lwr %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
+                break;
             case LoadStoreOp::LWU:
                 std::printf("[%08X:%08X] lwu %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
                 break;
@@ -1171,6 +1190,12 @@ void doLoadStore(const Instruction instr) {
                 break;
             case LoadStoreOp::SW:
                 std::printf("[%08X:%08X] sw %s, %04X(%s); [%08llX] = %08X\n", pc, instr.raw, rtName, imm, baseName, vaddr, (u32)data);
+                break;
+            case LoadStoreOp::SWL:
+                std::printf("[%08X:%08X] swl %s, %04X(%s); [%08llX] = %08X\n", pc, instr.raw, rtName, imm, baseName, vaddr, (u32)data);
+                break;
+            case LoadStoreOp::SWR:
+                std::printf("[%08X:%08X] swr %s, %04X(%s); [%08llX] = %08X\n", pc, instr.raw, rtName, imm, baseName, vaddr, (u32)data);
                 break;
         }
     }
@@ -1231,6 +1256,22 @@ void doLoadStore(const Instruction instr) {
 
             fpu::set(rt, read<u32>(vaddr));
             break;
+        case LoadStoreOp::LWL:
+            {
+                const u64 shift = 8 * (vaddr & 3);
+                const u32 mask = 0xFFFFFFFFU << shift;
+
+                set(rt, ((u32)get(rt) & ~mask) | (read<u32>(vaddr & ~3) << shift));
+            }
+            break;
+        case LoadStoreOp::LWR:
+            {
+                const u64 shift = 8 * ((vaddr ^ 3) & 3);
+                const u32 mask = 0xFFFFFFFFU >> shift;
+
+                set(rt, ((u32)get(rt) & ~mask) | (read<u32>(vaddr & ~3) >> shift));
+            }
+            break;
         case LoadStoreOp::LWU:
             if (!isAlignedAddress<u32>(vaddr)) {
                 PLOG_FATAL << "Unaligned LWU address " << std::hex << vaddr;
@@ -1269,6 +1310,26 @@ void doLoadStore(const Instruction instr) {
             }
 
             write(vaddr, (u32)get(rt));
+            break;
+        case LoadStoreOp::SWL:
+            {
+                const u64 shift = 8 * (vaddr & 3);
+                const u32 mask = 0xFFFFFFFFU >> shift;
+
+                const u64 maskedVaddr = vaddr & ~3;
+
+                write(maskedVaddr, (read<u32>(maskedVaddr) & ~mask) | ((u32)get(rt) >> shift));
+            }
+            break;
+        case LoadStoreOp::SWR:
+            {
+                const u64 shift = 8 * ((vaddr ^ 3) & 3);
+                const u32 mask = 0xFFFFFFFFU << shift;
+
+                const u64 maskedVaddr = vaddr & ~3;
+
+                write(maskedVaddr, (read<u32>(maskedVaddr) & ~mask) | ((u32)get(rt) << shift));
+            }
             break;
     }
 }
@@ -1464,6 +1525,12 @@ void doInstruction() {
         case Opcode::LH:
             doLoadStore<LoadStoreOp::LH>(instr);
             break;
+        case Opcode::LWL:
+            doLoadStore<LoadStoreOp::LWL>(instr);
+            break;
+        case Opcode::LWR:
+            doLoadStore<LoadStoreOp::LWR>(instr);
+            break;
         case Opcode::LW:
             doLoadStore<LoadStoreOp::LW>(instr);
             break;
@@ -1482,8 +1549,14 @@ void doInstruction() {
         case Opcode::SH:
             doLoadStore<LoadStoreOp::SH>(instr);
             break;
+        case Opcode::SWL:
+            doLoadStore<LoadStoreOp::SWL>(instr);
+            break;
         case Opcode::SW:
             doLoadStore<LoadStoreOp::SW>(instr);
+            break;
+        case Opcode::SWR:
+            doLoadStore<LoadStoreOp::SWR>(instr);
             break;
         case Opcode::CACHE:
             PLOG_WARNING << "CACHE instruction";
@@ -1511,6 +1584,8 @@ void run(const i64 cycles) {
 
         advanceDelaySlot();
         doInstruction();
+
+        cop0::incrementCount();
     }
 }
 
