@@ -96,7 +96,9 @@ constexpr const char *MODE_NAMES[RoundingMode::NumberOfRoundingModes] = {
 namespace Opcode {
     enum : u32 {
         ADD = 0x00,
+        MUL = 0x02,
         DIV = 0x03,
+        MOV = 0x06,
         TRUNCW = 0x0D,
         CVTS = 0x20,
         CVTD = 0x21,
@@ -463,6 +465,67 @@ void DIV(const Instruction instr) {
 }
 
 template<int format>
+void MOV(const Instruction instr) {
+    if ((format != Format::Single) && (format != Format::Double)) {
+        PLOG_FATAL << "Invalid format for MOV";
+
+        exit(0);
+    }
+
+    const u32 fd = instr.fType.fd;
+    const u32 fs = instr.fType.fs;
+
+    switch (format) {
+        case Format::Single:
+            set(fd, get<u32>(fs));
+            break;
+        default:
+            PLOG_FATAL << "Unimplemented format " << FORMAT_NAMES[format];
+
+            exit(0);
+    }
+    
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const u32 pc = getPC<true>();
+
+        const f32 single = makeSingle(get<u32>(fd));
+
+        std::printf("[%08X:%08X] mov.%c %u, %u; %u = %f\n", pc, instr.raw, FORMAT_CHARS[format], fd, fs, fd, single);
+    }
+}
+
+template<int format>
+void MUL(const Instruction instr) {
+    if ((format != Format::Single) && (format != Format::Double)) {
+        PLOG_FATAL << "Invalid format for MUL";
+
+        exit(0);
+    }
+
+    const u32 fd = instr.fType.fd;
+    const u32 fs = instr.fType.fs;
+    const u32 ft = instr.fType.ft;
+
+    switch (format) {
+        case Format::Single:
+            set(fd, makeWord(makeSingle(get<u32>(fs)) * makeSingle(get<u32>(ft))));
+            break;
+        default:
+            PLOG_FATAL << "Unimplemented format " << FORMAT_NAMES[format];
+
+            exit(0);
+    }
+    
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const u32 pc = getPC<true>();
+
+        const f32 single = makeSingle(get<u32>(fd));
+
+        std::printf("[%08X:%08X] mul.%c %u, %u, %u; %u = %f\n", pc, instr.raw, FORMAT_CHARS[format], fd, fs, ft, fd, single);
+    }
+}
+
+template<int format>
 void TRUNCW(const Instruction instr) {
     if ((format != Format::Single) && (format != Format::Double)) {
         PLOG_FATAL << "Invalid format for TRUNC.W";
@@ -501,8 +564,12 @@ void doSingle(const Instruction instr) {
     switch (funct) {
         case Opcode::ADD:
             return ADD<Format::Single>(instr);
+        case Opcode::MUL:
+            return MUL<Format::Single>(instr);
         case Opcode::DIV:
             return DIV<Format::Single>(instr);
+        case Opcode::MOV:
+            return MOV<Format::Single>(instr);
         case Opcode::TRUNCW:
             return TRUNCW<Format::Single>(instr);
         default:
