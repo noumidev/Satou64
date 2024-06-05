@@ -13,6 +13,9 @@ namespace hw::si {
 namespace IORegister {
     enum : u64 {
         IOBase = 0x4800000,
+        DRAMADDR = IOBase + 0x00,
+        ADRD64B = IOBase + 0x04,
+        ADWR64B = IOBase + 0x10,
         STATUS = IOBase + 0x18,
     };
 }
@@ -21,6 +24,12 @@ void init();
 void deinit();
 
 void reset();
+
+void startDMAFromPIF();
+void startDMAToPIF();
+
+void doDMAFromPIF();
+void doDMAToPIF();
 
 u32 readIO(const u64 ioaddr);
 
