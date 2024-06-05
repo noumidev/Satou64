@@ -76,7 +76,7 @@ u32 readIO(const u64 ioaddr) {
         case IORegister::STATUS:
             PLOG_WARNING << "STATUS read";
 
-            return 0;
+            return (regs.control.dmaEnable << 25) | (3 << 30);
         default:
             PLOG_FATAL << "Unrecognized IO read (address = " << std::hex << ioaddr << ")";
 
