@@ -463,7 +463,7 @@ void SM5::EXCI(const Instruction instr) {
 
 void SM5::HALT(const Instruction instr) {
     if constexpr (ENABLE_DISASSEMBLER) {
-        std::printf("[%03X:%02X] id\n", regs.oldPC, instr.raw);
+        std::printf("[%03X:%02X] halt\n", regs.oldPC, instr.raw);
     }
 
     PLOG_VERBOSE << "Standby mode entered";
