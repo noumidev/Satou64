@@ -91,6 +91,10 @@ void startDMAToPIF() {
 }
 
 void doDMAFromPIF() {
+    if (regs.status.dmaBusy == 0) {
+        return;
+    }
+
     const u64 dramaddr = regs.dramaddr.addr;
     const u64 pifaddr = regs.adrd64b.addr << 2;
 
@@ -109,6 +113,10 @@ void doDMAFromPIF() {
 }
 
 void doDMAToPIF() {
+    if (regs.status.dmaBusy == 0) {
+        return;
+    }
+
     const u64 dramaddr = regs.dramaddr.addr;
     const u64 pifaddr = regs.adwr64b.addr << 2;
 
