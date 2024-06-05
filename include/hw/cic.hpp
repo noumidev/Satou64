@@ -14,10 +14,13 @@ void deinit();
 
 void reset();
 
-void setNextData(const int idx);
+void setDataIn(const u64 length);
+void setDataOut(const u64 data, const u64 length);
 
 u8 read();
 
 void write(const u8 data);
+
+void doCompare();
 
 }
