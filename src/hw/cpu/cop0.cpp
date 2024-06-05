@@ -120,7 +120,7 @@ union Status {
 };
 
 struct Registers {
-    u32 count;
+    u64 count;
     u32 compare;
     Status status;
     Cause cause;
@@ -224,7 +224,7 @@ void set(const u32 idx, const u32 data) {
             PLOG_WARNING << "PageMask write (data = " << std::hex << data << ")";
             break;
         case Register::Count:
-            regs.count = data;
+            regs.count = data << 1;
             break;
         case Register::EntryHi:
             PLOG_WARNING << "EntryHi write (data = " << std::hex << data << ")";
@@ -321,6 +321,20 @@ void setExceptionPC(const u64 epc) {
     regs.epc = epc;
 }
 
+void ERET() {
+    if (regs.status.errorLevel != 0) {
+        PLOG_FATAL << "Unimplented return from Error";
+
+        exit(0);
+    } else {
+        regs.status.exceptionLevel = 0;
+
+        setPC<false>(regs.epc);
+    }
+
+    // TODO: clear Load Linked bit
+}
+
 void doInstruction(const Instruction instr) {
     const u32 funct = instr.rType.funct;
     if constexpr (ENABLE_DISASSEMBLER) {
@@ -343,17 +357,7 @@ void doInstruction(const Instruction instr) {
             PLOG_WARNING << "TLBWI instruction";
             break;
         case Opcode::ERET:
-            if (regs.status.errorLevel != 0) {
-                PLOG_FATAL << "Unimplented return from Error";
-
-                exit(0);
-            } else {
-                regs.status.exceptionLevel = 0;
-
-                setPC<false>(regs.epc);
-            }
-
-            // TODO: clear Load Linked bit
+            ERET();
             break;
         default:
             PLOG_FATAL << "Unrecognized System Control opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
@@ -370,6 +374,8 @@ void incrementCount() {
 
         setInterruptPending(InterruptNumber::Compare);
     }
+
+    regs.count &= 0x1FFFFFFFFULL;
 }
 
 }
