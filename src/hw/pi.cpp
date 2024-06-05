@@ -11,6 +11,8 @@
 
 #include <plog/Log.h>
 
+#include "hw/mi.hpp"
+
 #include "sys/memory.hpp"
 
 namespace hw::pi {
@@ -116,6 +118,8 @@ void doDMAToRAM() {
     std::memcpy(dst, src, len);
 
     regs.status.dmaBusy = 0;
+
+    mi::requestInterrupt(mi::InterruptSource::PI);
 }
 
 u32 readIO(const u64 ioaddr) {
@@ -189,9 +193,10 @@ void writeIO(const u64 ioaddr, const u32 data) {
                 PLOG_VERBOSE << "DMA controller reset";
             }
 
-            // TODO: implement PI interrupt flag
             if ((data & 2) != 0) {
-                PLOG_WARNING << "Interrupt flag cleared";
+                PLOG_INFO << "Interrupt flag cleared";
+
+                mi::clearInterrupt(mi::InterruptSource::PI);
             }
             break;
         case IORegister::BSDDOM1LAT:
