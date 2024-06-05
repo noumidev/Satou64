@@ -13,6 +13,7 @@
 #include <plog/Log.h>
 
 #include "hw/cic.hpp"
+#include "hw/si.hpp"
 
 namespace hw::sm5 {
 
@@ -30,10 +31,14 @@ namespace Opcode {
         EXBL = 0x67,
         EX = 0x68,
         PAT = 0x6A,
+        TABL = 0x6B,
         TB = 0x6D,
         TC = 0x6E,
         TAM = 0x6F,
+        OUTL = 0x71,
+        IN = 0x74,
         OUT = 0x75,
+        HALT = 0x77,
         INCB = 0x78,
         COMA = 0x79,
         ADD = 0x7A,
@@ -41,6 +46,7 @@ namespace Opcode {
         DECB = 0x7C,
         RTN = 0x7D,
         RTNS = 0x7E,
+        RTNI = 0x7F,
         TR = 0x80,
         TRS = 0xC0,
         TL = 0xE0,
@@ -72,11 +78,22 @@ namespace Imm4Opcode {
 
 namespace Port {
     enum : u8 {
+        JoyData = 0,
         JoyBus = 2,
+        JoyStatus = 3,
+        JoyError = 4,
         CIC = 5,
         BootROMDisable = 6,
+        RCP = 7,
         RNG = 9,
+        JoyChannelSelect = 10,
         InterruptEnable = 14,
+    };
+}
+
+namespace JoyError {
+    enum : u8 {
+        Error = 1 << 3,
     };
 }
 
@@ -86,6 +103,59 @@ SM5::~SM5() {}
 
 void SM5::reset() {
     std::memset(&regs, 0, sizeof(Registers));
+
+    isOnStandby = false;
+}
+
+void SM5::checkInterruptPending() {
+    PLOG_INFO << "IME = " << regs.ime << ", IE = " << std::hex << (u16)regs.ie.raw << ", IF = " << (u16)regs.ifl.raw;
+
+    // TODO: clear HALT mode
+    if ((regs.ie.raw & regs.ifl.raw) == 0) {
+        return;
+    }
+
+    if (isOnStandby) {
+        PLOG_VERBOSE << "Standby mode exited";
+
+        isOnStandby = false;
+
+        regs.pc.pu = 3;
+        regs.pc.pl = 0;
+    }
+
+    if (regs.ime) {
+        push();
+
+        regs.pc.pu = 2;
+
+        if ((regs.ie.ifa & regs.ifl.ifa) != 0) {
+            PLOG_VERBOSE << "Interrupt A triggered";
+
+            regs.pc.pl = 0;
+        } else if ((regs.ie.ifb & regs.ifl.ifb) != 0) {
+            PLOG_VERBOSE << "Interrupt B triggered";
+
+            regs.pc.pl = 2;
+        } else if ((regs.ie.ift & regs.ifl.ift) != 0) {
+            PLOG_VERBOSE << "Timer interrupt triggered";
+
+            regs.pc.pl = 4;
+        }
+
+        regs.ime = false;
+    }
+}
+
+void SM5::setInterruptAPending() {
+    regs.ifl.ifa = 1;
+
+    checkInterruptPending();
+}
+
+void SM5::setRCPPort(const bool isRead, const bool is64B) {
+    regs.rcpPort.isRead = isRead;
+    regs.rcpPort.is64B = is64B;
 }
 
 u8 SM5::fetch() {
@@ -98,12 +168,28 @@ u8 SM5::fetch() {
 
 u8 SM5::readPort(const u8 port) {
     switch (port) {
+        case Port::JoyStatus:
+            PLOG_WARNING << "Read from Joy Status";
+
+            return 0xA;
+        case Port::JoyError:
+            PLOG_WARNING << "Read from Joy Error";
+
+            return JoyError::Error;
         case Port::CIC:
             return hw::cic::read();
+        case Port::RCP:
+            PLOG_VERBOSE << "Read from RCP";
+
+            return regs.rcpPort.raw;
         case Port::RNG:
             PLOG_WARNING << "Read from RNG";
 
             return 0xFF;
+        case Port::JoyChannelSelect:
+            PLOG_WARNING << "Read from Joy Channel Select";
+
+            return regs.joyChannel;
         default:
             PLOG_FATAL << "Unrecognized read from port " << (u16)port;
 
@@ -113,8 +199,14 @@ u8 SM5::readPort(const u8 port) {
 
 void SM5::writePort(const u8 port, const u8 data) {
     switch (port) {
+        case Port::JoyData:
+            PLOG_WARNING << "Write to Joy Data (data = " << std::hex << (u16)(data & 0xF) << ")";
+            break;
         case Port::JoyBus:
             PLOG_WARNING << "Write to JoyBus (data = " << std::hex << (u16)(data & 0xF) << ")";
+            break;
+        case Port::JoyError:
+            PLOG_WARNING << "Write to Joy Error (data = " << std::hex << (u16)(data & 0xF) << ")";
             break;
         case Port::CIC:
             return hw::cic::write(data & 0xF);
@@ -124,22 +216,29 @@ void SM5::writePort(const u8 port, const u8 data) {
         case Port::RNG:
             PLOG_WARNING << "Write to RNG (data = " << std::hex << (u16)(data & 0xF) << ")";
             break;
+        case Port::JoyChannelSelect:
+            PLOG_WARNING << "Write to Joy Channel Select (data = " << std::hex << (u16)(data & 0xF) << ")";
+
+            regs.joyChannel = data & 0xF;
+            break;
         case Port::InterruptEnable:
             PLOG_VERBOSE << "Write to Interrupt Enable (data = " << std::hex << (u16)(data & 0xF) << ")";
 
             regs.ie.raw = data & 0xF;
 
             if (regs.ie.ifa == 1) {
-                PLOG_WARNING << "Port 1 bit 0 interrupt enabled";
+                PLOG_VERBOSE << "Port 1 bit 0 interrupt enabled";
             }
 
             if (regs.ie.ifb == 1) {
-                PLOG_WARNING << "Port 1 bit 1 interrupt enabled";
+                PLOG_VERBOSE << "Port 1 bit 1 interrupt enabled";
             }
 
             if (regs.ie.ift == 1) {
                 PLOG_WARNING << "Timer interrupt enabled";
             }
+
+            checkInterruptPending();
             break;
         default:
             PLOG_FATAL << "Unrecognized write to port " << (u16)port << " (data = " << std::hex << (u16)data << ")";
@@ -362,6 +461,28 @@ void SM5::EXCI(const Instruction instr) {
     }
 }
 
+void SM5::HALT(const Instruction instr) {
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] id\n", regs.oldPC, instr.raw);
+    }
+
+    PLOG_VERBOSE << "Standby mode entered";
+
+    isOnStandby = true;
+
+    if (regs.rcpPort.is64B == 0) {
+        PLOG_FATAL << "Unimplemented 4-byte transfer";
+
+        exit(0);
+    }
+
+    if (regs.rcpPort.isRead != 0) {
+        si::doDMAFromPIF();
+    } else {
+        si::doDMAToPIF();
+    }
+}
+
 void SM5::ID(const Instruction instr) {
     regs.ime = false;
 
@@ -376,6 +497,20 @@ void SM5::IE(const Instruction instr) {
     if constexpr (ENABLE_DISASSEMBLER) {
         std::printf("[%03X:%02X] ie\n", regs.oldPC, instr.raw);
     }
+
+    checkInterruptPending();
+}
+
+void SM5::IN(const Instruction instr) {
+    const u8 port = regs.b.l;
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] in\n", regs.oldPC, instr.raw);
+    }
+
+    const u8 data = readPort(port);
+
+    regs.xa.a = data & 0xF;
 }
 
 void SM5::INCB(const Instruction instr) {
@@ -442,6 +577,16 @@ void SM5::OUT(const Instruction instr) {
     writePort(port, data);
 }
 
+void SM5::OUTL(const Instruction instr) {
+    const u8 data = regs.xa.raw;
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] outl\n", regs.oldPC, instr.raw);
+    }
+
+    writePort(0, data);
+}
+
 void SM5::PAT(const Instruction instr) {
     push();
 
@@ -484,6 +629,18 @@ void SM5::RTN(const Instruction instr) {
     }
 }
 
+void SM5::RTNI(const Instruction instr) {
+    pop();
+
+    regs.ime = true;
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] rtni\n", regs.oldPC, instr.raw);
+    }
+
+    checkInterruptPending();
+}
+
 void SM5::RTNS(const Instruction instr) {
     pop();
     skip();
@@ -512,6 +669,16 @@ void SM5::SM(const Instruction instr) {
     writeRAM(regs.b.raw, data);
 }
 
+void SM5::TABL(const Instruction instr) {
+    if (regs.xa.a == regs.b.l) {
+        skip();
+    }
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] tabl\n", regs.oldPC, instr.raw);
+    }
+}
+
 void SM5::TAM(const Instruction instr) {
     if (regs.xa.a == readRAM(regs.b.raw)) {
         skip();
@@ -523,11 +690,11 @@ void SM5::TAM(const Instruction instr) {
 }
 
 void SM5::TB(const Instruction instr) {
-    if (regs.ie.ifb) {
+    if (regs.ifl.ifb != 0) {
         skip();
     }
 
-    regs.ie.ifb = 0;
+    regs.ifl.ifb = 0;
 
     if constexpr (ENABLE_DISASSEMBLER) {
         std::printf("[%03X:%02X] tb\n", regs.oldPC, instr.raw);
@@ -688,14 +855,22 @@ void SM5::doInstruction() {
             return EX(instr);
         case Opcode::PAT:
             return PAT(instr);
+        case Opcode::TABL:
+            return TABL(instr);
         case Opcode::TB:
             return TB(instr);
         case Opcode::TC:
             return TC(instr);
         case Opcode::TAM:
             return TAM(instr);
+        case Opcode::OUTL:
+            return OUTL(instr);
+        case Opcode::IN:
+            return IN(instr);
         case Opcode::OUT:
             return OUT(instr);
+        case Opcode::HALT:
+            return HALT(instr);
         case Opcode::INCB:
             return INCB(instr);
         case Opcode::COMA:
@@ -710,6 +885,8 @@ void SM5::doInstruction() {
             return RTN(instr);
         case Opcode::RTNS:
             return RTNS(instr);
+        case Opcode::RTNI:
+            return RTNI(instr);
         default:
             PLOG_FATAL << "Unrecognized instruction " << std::hex << (u16)op << " (PC = " << regs.oldPC << ")";
 
@@ -719,6 +896,10 @@ void SM5::doInstruction() {
 
 void SM5::run(const i64 cycles) {
     for (i64 i = 0; i < cycles; i++) {
+        if (isOnStandby) {
+            return;
+        }
+
         doInstruction();
     }
 }

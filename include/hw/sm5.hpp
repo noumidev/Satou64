@@ -63,7 +63,19 @@ struct Registers {
             u8 ift : 1;
             u8 : 5;
         };
-    } ie;
+    } ie, ifl;
+
+    union {
+        u8 raw;
+        struct {
+            u8 : 2;
+            u8 is64B : 1;
+            u8 isRead : 1;
+            u8 : 4;
+        };
+    } rcpPort;
+
+    u8 joyChannel;
 
     // Interrupt master enable
     bool ime;
@@ -92,6 +104,10 @@ struct SM5 {
 private:
     Registers regs;
 
+    bool isOnStandby;
+
+    void checkInterruptPending();
+
     // Reads immediate data, increments PC
     u8 fetch();
 
@@ -118,21 +134,26 @@ private:
     void EXC(const Instruction instr);
     void EXCD(const Instruction instr);
     void EXCI(const Instruction instr);
+    void HALT(const Instruction instr);
     void ID(const Instruction instr);
     void IE(const Instruction instr);
+    void IN(const Instruction instr);
     void INCB(const Instruction instr);
     void LAX(const Instruction instr);
     void LBLX(const Instruction instr);
     void LBMX(const Instruction instr);
     void LDA(const Instruction instr);
     void OUT(const Instruction instr);
+    void OUTL(const Instruction instr);
     void PAT(const Instruction instr);
     void RC(const Instruction instr);
     void RM(const Instruction instr);
     void RTN(const Instruction instr);
+    void RTNI(const Instruction instr);
     void RTNS(const Instruction instr);
     void SC(const Instruction instr);
     void SM(const Instruction instr);
+    void TABL(const Instruction instr);
     void TAM(const Instruction instr);
     void TB(const Instruction instr);
     void TC(const Instruction instr);
@@ -149,6 +170,10 @@ public:
     ~SM5();
 
     void reset();
+
+    void setInterruptAPending();
+
+    void setRCPPort(const bool isRead, const bool is64B);
 
     u8 (*read)(const u16 paddr);
     u8 (*readRAM)(const u8 paddr);
