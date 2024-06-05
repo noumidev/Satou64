@@ -35,6 +35,14 @@ void reset() {
     pifNUS.reset();
 }
 
+void setInterruptAPending() {
+    pifNUS.setInterruptAPending();
+}
+
+void setRCPPort(const bool isRead, const bool is64B) {
+    pifNUS.setRCPPort(isRead, is64B);
+}
+
 u32 read(const u64 paddr) {
     u32 data;
     std::memcpy(&data, memory::getRAMPointer(paddr - sys::memory::MemoryBase::PIF_RAM + sys::memory::MemorySize::PIF_RAM), sizeof(u32));

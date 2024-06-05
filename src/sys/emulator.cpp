@@ -81,7 +81,7 @@ void deinit() {
 
 void run() {
     // Give PIF-NUS a headstart to simulate the slowness of excuting code from the boot ROM
-    hw::pif::run(scheduler::CPU_FREQUENCY / 60);
+    hw::pif::run(scheduler::CPU_FREQUENCY / 60 / 6);
 
     while (isRunning) {
         const i64 cycles = scheduler::getRunCycles();

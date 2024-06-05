@@ -14,6 +14,10 @@ void deinit();
 
 void reset();
 
+void setInterruptAPending();
+
+void setRCPPort(const bool isRead, const bool is64B);
+
 // Reads data from PIF RAM
 u32 read(const u64 paddr);
 
