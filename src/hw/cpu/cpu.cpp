@@ -97,8 +97,11 @@ namespace Opcode {
         BEQL = 0x14,
         BNEL = 0x15,
         BLEZL = 0x16,
+        BGTZL = 0x17,
         DADDI = 0x18,
         DADDIU = 0x19,
+        LDL = 0x1A,
+        LDR = 0x1B,
         LB = 0x20,
         LH = 0x21,
         LWL = 0x22,
@@ -114,14 +117,19 @@ namespace Opcode {
         SWR = 0x2E,
         CACHE = 0x2F,
         LWC1 = 0x31,
+        LDC1 = 0x35,
         LD = 0x37,
+        SWC1 = 0x39,
+        SDC1 = 0x3D,
         SD = 0x3F,
     };
 }
 
 namespace RegimmOpcode {
     enum : u32 {
+        BLTZ = 0x00,
         BGEZ = 0x01,
+        BLTZL = 0x02,
         BGEZL = 0x03,
         BGEZAL = 0x11,
     };
@@ -230,10 +238,13 @@ enum class BranchOp {
     BEQL,
     BLEZ,
     BLEZL,
+    BLTZ,
+    BLTZL,
     BGEZ,
     BGEZL,
     BGEZAL,
     BGTZ,
+    BGTZL,
     BNE,
     BNEL,
 };
@@ -249,6 +260,9 @@ enum class LoadStoreOp {
     LB,
     LBU,
     LD,
+    LDC1,
+    LDL,
+    LDR,
     LH,
     LHU,
     LW,
@@ -258,8 +272,10 @@ enum class LoadStoreOp {
     LWU,
     SB,
     SD,
+    SDC1,
     SH,
     SW,
+    SWC1,
     SWL,
     SWR,
 };
@@ -431,7 +447,11 @@ void advancePC() {
 u64 translateAddress(const u64 vaddr) {
     const u32 vaddrMasked = vaddr;
     if ((vaddrMasked < AddressRangeBase::KSEG0) || (vaddrMasked >= AddressRangeBase::KSSEG)) {
-        PLOG_FATAL << "Unimplemented access to TLB mapped region (address = " << std::hex << vaddrMasked << ")";
+        PLOG_FATAL << "Unimplemented access to TLB mapped region (address = " << std::hex << vaddrMasked << ", PC = " << regFile.cpc << ")";
+
+        for (u32 i = 0; i < Register::NumberOfRegisters; i++) {
+            std::printf("%s: %016llX\n", REG_NAMES[i], get(i));
+        }
 
         exit(0);
     }
@@ -640,7 +660,7 @@ void doALURegister(const Instruction instr) {
                 const i32 d = (i32)rtData;
 
                 if (d == 0) {
-                    PLOG_ERROR << "DIVU by zero";
+                    PLOG_ERROR << "DIV by zero";
 
                     if (n < 0) {
                         set(Register::LO, (u32)1);
@@ -650,6 +670,8 @@ void doALURegister(const Instruction instr) {
 
                     set(Register::HI, (u32)n);
                 } else if ((n == (1 << 31)) && (d == -1)) {
+                    PLOG_ERROR << "DIV overflow";
+
                     set(Register::LO, 1U << 31);
                     set(Register::HI, (u32)0);
                 } else {
@@ -693,7 +715,7 @@ void doALURegister(const Instruction instr) {
             set(rd, get(Register::LO));
             break;
         case ALUOpReg::MTHI:
-            set(Register::HI, rtData);
+            set(Register::HI, rsData);
             break;
         case ALUOpReg::MTLO:
             set(Register::LO, rsData);
@@ -886,6 +908,12 @@ void doBranch(const Instruction instr) {
             case BranchOp::BLEZL:
                 std::printf("[%08X:%08X] blezl %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
                 break;
+            case BranchOp::BLTZ:
+                std::printf("[%08X:%08X] bltz %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
+                break;
+            case BranchOp::BLTZL:
+                std::printf("[%08X:%08X] bltzl %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
+                break;
             case BranchOp::BGEZ:
                 std::printf("[%08X:%08X] bgez %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
                 break;
@@ -897,6 +925,9 @@ void doBranch(const Instruction instr) {
                 break;
             case BranchOp::BGTZ:
                 std::printf("[%08X:%08X] bgtz %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
+                break;
+            case BranchOp::BGTZL:
+                std::printf("[%08X:%08X] bgtzl %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
                 break;
             case BranchOp::BNE:
                 std::printf("[%08X:%08X] bne %s, %s, %08llX; %s = %016llX, %s = %016llX\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
@@ -923,6 +954,12 @@ void doBranch(const Instruction instr) {
         case BranchOp::BLEZL:
             branch(target, (i64)rsData <= 0, Register::R0, true);
             break;
+        case BranchOp::BLTZ:
+            branch(target, (i64)rsData < 0, Register::R0, false);
+            break;
+        case BranchOp::BLTZL:
+            branch(target, (i64)rsData < 0, Register::R0, true);
+            break;
         case BranchOp::BGEZ:
             branch(target, (i64)rsData >= 0, Register::R0, false);
             break;
@@ -934,6 +971,9 @@ void doBranch(const Instruction instr) {
             break;
         case BranchOp::BGTZ:
             branch(target, (i64)rsData > 0, Register::R0, false);
+            break;
+        case BranchOp::BGTZL:
+            branch(target, (i64)rsData > 0, Register::R0, true);
             break;
         case BranchOp::BNE:
             branch(target, rsData != rtData, Register::R0, false);
@@ -1158,6 +1198,15 @@ void doLoadStore(const Instruction instr) {
             case LoadStoreOp::LD:
                 std::printf("[%08X:%08X] ld %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
                 break;
+            case LoadStoreOp::LDC1:
+                std::printf("[%08X:%08X] ldc1 %u, %04X(%s); %u = [%08llX]\n", pc, instr.raw, rt, imm, baseName, rt, vaddr);
+                break;
+            case LoadStoreOp::LDL:
+                std::printf("[%08X:%08X] ldl %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
+                break;
+            case LoadStoreOp::LDR:
+                std::printf("[%08X:%08X] ldr %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
+                break;
             case LoadStoreOp::LH:
                 std::printf("[%08X:%08X] lh %s, %04X(%s); %s = [%08llX]\n", pc, instr.raw, rtName, imm, baseName, rtName, vaddr);
                 break;
@@ -1185,11 +1234,17 @@ void doLoadStore(const Instruction instr) {
             case LoadStoreOp::SD:
                 std::printf("[%08X:%08X] sd %s, %04X(%s); [%08llX] = %016llX\n", pc, instr.raw, rtName, imm, baseName, vaddr, data);
                 break;
+            case LoadStoreOp::SDC1:
+                std::printf("[%08X:%08X] sdc1 %u, %04X(%s); [%08llX] = %016llX\n", pc, instr.raw, rt, imm, baseName, vaddr, fpu::get<u64>(rt));
+                break;
             case LoadStoreOp::SH:
                 std::printf("[%08X:%08X] sw %s, %04X(%s); [%08llX] = %04X\n", pc, instr.raw, rtName, imm, baseName, vaddr, (u16)data);
                 break;
             case LoadStoreOp::SW:
                 std::printf("[%08X:%08X] sw %s, %04X(%s); [%08llX] = %08X\n", pc, instr.raw, rtName, imm, baseName, vaddr, (u32)data);
+                break;
+            case LoadStoreOp::SWC1:
+                std::printf("[%08X:%08X] sdc1 %u, %04X(%s); [%08llX] = %08X\n", pc, instr.raw, rt, imm, baseName, vaddr, fpu::get<u32>(rt));
                 break;
             case LoadStoreOp::SWL:
                 std::printf("[%08X:%08X] swl %s, %04X(%s); [%08llX] = %08X\n", pc, instr.raw, rtName, imm, baseName, vaddr, (u32)data);
@@ -1215,6 +1270,35 @@ void doLoadStore(const Instruction instr) {
             }
 
             set(rt, read<u64>(vaddr));
+            break;
+        case LoadStoreOp::LDC1:
+            if (!cop0::isCoprocessorUsable(Coprocessor::FPU)) {
+                PLOG_WARNING << "Unimplemented Coprocessor Unusable exception";
+            }
+
+            if (!isAlignedAddress<u64>(vaddr)) {
+                PLOG_FATAL << "Unaligned LDC1 address " << std::hex << vaddr;
+
+                exit(0);
+            }
+
+            fpu::set(rt, read<u64>(vaddr));
+            break;
+        case LoadStoreOp::LDL:
+            {
+                const u64 shift = 8 * (vaddr & 7);
+                const u64 mask = 0xFFFFFFFFFFFFFFFFULL << shift;
+
+                set(rt, (get(rt) & ~mask) | (read<u64>(vaddr & ~7) << shift));
+            }
+            break;
+        case LoadStoreOp::LDR:
+            {
+                const u64 shift = 8 * ((vaddr ^ 7) & 7);
+                const u64 mask = 0xFFFFFFFFFFFFFFFFULL >> shift;
+
+                set(rt, (get(rt) & ~mask) | (read<u64>(vaddr & ~7) >> shift));
+            }
             break;
         case LoadStoreOp::LH:
             if (!isAlignedAddress<u16>(vaddr)) {
@@ -1293,6 +1377,19 @@ void doLoadStore(const Instruction instr) {
 
             write(vaddr, get(rt));
             break;
+        case LoadStoreOp::SDC1:
+            if (!cop0::isCoprocessorUsable(Coprocessor::FPU)) {
+                PLOG_WARNING << "Unimplemented Coprocessor Unusable exception";
+            }
+
+            if (!isAlignedAddress<u64>(vaddr)) {
+                PLOG_FATAL << "Unaligned SDC1 address " << std::hex << vaddr;
+
+                exit(0);
+            }
+
+            write(vaddr, fpu::get<u64>(rt));
+            break;
         case LoadStoreOp::SH:
             if (!isAlignedAddress<u16>(vaddr)) {
                 PLOG_FATAL << "Unaligned SH address " << std::hex << vaddr;
@@ -1310,6 +1407,19 @@ void doLoadStore(const Instruction instr) {
             }
 
             write(vaddr, (u32)get(rt));
+            break;
+        case LoadStoreOp::SWC1:
+            if (!cop0::isCoprocessorUsable(Coprocessor::FPU)) {
+                PLOG_WARNING << "Unimplemented Coprocessor Unusable exception";
+            }
+
+            if (!isAlignedAddress<u32>(vaddr)) {
+                PLOG_FATAL << "Unaligned SWC1 address " << std::hex << vaddr;
+
+                exit(0);
+            }
+
+            write(vaddr, fpu::get<u32>(rt));
             break;
         case LoadStoreOp::SWL:
             {
@@ -1440,8 +1550,14 @@ void doInstruction() {
         case Opcode::REGIMM: {
                 const u32 op = instr.iType.rt;
                 switch (op) {
+                    case RegimmOpcode::BLTZ:
+                        doBranch<BranchOp::BLTZ>(instr);
+                        break;
                     case RegimmOpcode::BGEZ:
                         doBranch<BranchOp::BGEZ>(instr);
+                        break;
+                    case RegimmOpcode::BLTZL:
+                        doBranch<BranchOp::BLTZL>(instr);
                         break;
                     case RegimmOpcode::BGEZL:
                         doBranch<BranchOp::BGEZL>(instr);
@@ -1513,11 +1629,20 @@ void doInstruction() {
         case Opcode::BLEZL:
             doBranch<BranchOp::BLEZL>(instr);
             break;
+        case Opcode::BGTZL:
+            doBranch<BranchOp::BGTZL>(instr);
+            break;
         case Opcode::DADDI:
             doALUImmediate<ALUOpImm::DADDI>(instr);
             break;
         case Opcode::DADDIU:
             doALUImmediate<ALUOpImm::DADDIU>(instr);
+            break;
+        case Opcode::LDL:
+            doLoadStore<LoadStoreOp::LDL>(instr);
+            break;
+        case Opcode::LDR:
+            doLoadStore<LoadStoreOp::LDR>(instr);
             break;
         case Opcode::LB:
             doLoadStore<LoadStoreOp::LB>(instr);
@@ -1564,8 +1689,17 @@ void doInstruction() {
         case Opcode::LWC1:
             doLoadStore<LoadStoreOp::LWC1>(instr);
             break;
+        case Opcode::LDC1:
+            doLoadStore<LoadStoreOp::LDC1>(instr);
+            break;
         case Opcode::LD:
             doLoadStore<LoadStoreOp::LD>(instr);
+            break;
+        case Opcode::SWC1:
+            doLoadStore<LoadStoreOp::SWC1>(instr);
+            break;
+        case Opcode::SDC1:
+            doLoadStore<LoadStoreOp::SDC1>(instr);
             break;
         case Opcode::SD:
             doLoadStore<LoadStoreOp::SD>(instr);
