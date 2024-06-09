@@ -48,6 +48,7 @@ namespace JoybusCommand {
     enum : u8 {
         Info = 0x00,
         ControllerState = 0x01,
+        ReadControllerAccessory = 0x02,
         WriteControllerAccessory = 0x03,
     };
 }
@@ -166,6 +167,9 @@ void doCommand() {
         case JoybusCommand::ControllerState:
             cmdControllerState();
             break;
+        case JoybusCommand::ReadControllerAccessory:
+            prepareReceiveData(2); // Two address bytes
+            break;
         case JoybusCommand::WriteControllerAccessory:
             prepareReceiveData(34); // Two address bytes, 32 data bytes
             break;
@@ -222,6 +226,27 @@ void cmdInfo() {
     std::memcpy(txBuffer, &id, sizeof(u16));
 
     txBuffer[2] = status;
+}
+
+void cmdReadControllerAccessory() {
+    PLOG_VERBOSE << "Read Controller Accessory (channel = " << (u16)currentChannel << ")";
+
+    // TODO: read address
+
+    resetTXBuffer();
+
+    switch (activeChannel->device) {
+        case JoybusDevice::Controller:
+            PLOG_DEBUG << "Channel " << (u16)currentChannel << " is standard controller";
+            PLOG_ERROR << "No Controller Pak inserted";
+            break;
+        default:
+            PLOG_FATAL << "Unrecognized Joybus device";
+
+            exit(0);
+    }
+
+    txBuffer[32] = calculateCRC(txBuffer);
 }
 
 void cmdWriteControllerAccessory() {
@@ -321,6 +346,9 @@ void writeTransmit(const u8 data) {
                 if (txPointer == dataSize) {
                     const u8 command = txBuffer[0];
                     switch (command) {
+                        case JoybusCommand::ReadControllerAccessory:
+                            cmdReadControllerAccessory();
+                            break;
                         case JoybusCommand::WriteControllerAccessory:
                             cmdWriteControllerAccessory();
                             break;

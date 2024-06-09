@@ -25,6 +25,7 @@ void doCommand();
 
 void cmdControllerState();
 void cmdInfo();
+void cmdReadControllerAccessory();
 void cmdWriteControllerAccessory();
 
 u8 readChannel();
