@@ -329,7 +329,7 @@ void ERET() {
     } else {
         regs.status.exceptionLevel = 0;
 
-        setPC<false>(regs.epc);
+        setPC(regs.epc);
     }
 
     // TODO: clear Load Linked bit
@@ -338,7 +338,7 @@ void ERET() {
 void doInstruction(const Instruction instr) {
     const u32 funct = instr.rType.funct;
     if constexpr (ENABLE_DISASSEMBLER) {
-        const u32 pc = getPC<true>();
+        const u32 pc = getCurrentPC();
         switch (funct) {
             case Opcode::TLBWI:
                 break;
@@ -346,7 +346,7 @@ void doInstruction(const Instruction instr) {
                 std::printf("[%08X:%08X] eret\n", pc, instr.raw);
                 break;
             default:
-                PLOG_FATAL << "Unrecognized System Control opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+                PLOG_FATAL << "Unrecognized System Control opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << pc << ")";
 
                 exit(0);
         }
@@ -360,7 +360,7 @@ void doInstruction(const Instruction instr) {
             ERET();
             break;
         default:
-            PLOG_FATAL << "Unrecognized System Control opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+            PLOG_FATAL << "Unrecognized System Control opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
 
             exit(0);
     }

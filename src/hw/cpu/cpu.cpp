@@ -308,7 +308,7 @@ void reset() {
     std::memset(&regFile, 0, sizeof(RegisterFile));
 
     // Set program counter
-    setPC<false>(ADDR_RESET_VECTOR);
+    setPC(ADDR_RESET_VECTOR);
 
     inDelaySlot[0] = inDelaySlot[1] = false;
 }
@@ -341,7 +341,7 @@ void raiseException(const u32 exceptionCode) {
 
     cop0::setExceptionLevel();
 
-    setPC<false>(vectorBase);
+    setPC(vectorBase);
 }
 
 bool isValidRegisterIndex(const u32 idx) {
@@ -358,13 +358,12 @@ u64 get(const u32 idx) {
     return regFile.regs[idx];
 }
 
-template<bool isCurrentPC>
 u64 getPC() {
-    if constexpr (isCurrentPC) {
-        return regFile.cpc;
-    }
-
     return regFile.pc;
+}
+
+u64 getCurrentPC() {
+    return regFile.cpc;
 }
 
 template<>
@@ -399,16 +398,15 @@ void set(const u32 idx, const u64 data) {
     regs[Register::R0] = 0;
 }
 
-template<bool isBranch>
 void setPC(const u64 addr) {
-    if constexpr (isBranch) {
-        regFile.npc = addr;
-    } else {
-        regFile.pc = addr;
-        regFile.npc = addr + sizeof(Instruction);
+    regFile.pc = addr;
+    regFile.npc = addr + sizeof(Instruction);
 
-        inDelaySlot[0] = inDelaySlot[1] = false;
-    }
+    inDelaySlot[0] = inDelaySlot[1] = false;
+}
+
+void setBranchPC(const u64 addr) {
+    regFile.npc = addr;
 }
 
 void branch(const u64 target, const bool condition, const u32 linkReg, const bool isLikely) {
@@ -425,10 +423,10 @@ void branch(const u64 target, const bool condition, const u32 linkReg, const boo
     inDelaySlot[1] = true;
 
     if (condition) {
-        setPC<true>(target);
+         setBranchPC(target);
     } else if (isLikely) {
         // Skip delay slot
-        setPC<false>(regFile.npc);
+        setPC(regFile.npc);
 
         inDelaySlot[1] = false;
     }
@@ -498,7 +496,7 @@ u64 read(const u64 vaddr) {
 }
 
 u32 fetch() {
-    const u32 data = read<u32>(getPC<true>());
+    const u32 data = read<u32>(getCurrentPC());
 
     advancePC();
 
@@ -593,7 +591,7 @@ void doALUImmediate(const Instruction instr) {
         const char *rsName = REG_NAMES[rs];
         const char *rtName = REG_NAMES[rt];
 
-        const u32 pc = getPC<true>();
+        const u32 pc = getCurrentPC();
 
         const u64 rtData = get(rt);
 
@@ -781,7 +779,7 @@ void doALURegister(const Instruction instr) {
 
         const u64 rdData = get(rd);
 
-        const u32 pc = getPC<true>();
+        const u32 pc = getCurrentPC();
 
         switch (op) {
             case ALUOpReg::ADD:
@@ -881,7 +879,7 @@ void doBranch(const Instruction instr) {
     const u32 imm = instr.iType.immediate;
     const u64 offset = (i16)imm;
 
-    const u64 target = getPC<false>() + (offset << 2);
+    const u64 target = getPC() + (offset << 2);
 
     const u64 rsData = get(rs);
     const u64 rtData = get(rt);
@@ -890,7 +888,7 @@ void doBranch(const Instruction instr) {
         const char *rsName = REG_NAMES[rs];
         const char *rtName = REG_NAMES[rt];
 
-        const u32 pc = getPC<true>();
+        const u32 pc = getCurrentPC();
 
         switch (op) {
             case BranchOp::BC1TL:
@@ -921,7 +919,7 @@ void doBranch(const Instruction instr) {
                 std::printf("[%08X:%08X] bgezl %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
                 break;
             case BranchOp::BGEZAL:
-                std::printf("[%08X:%08X] bgezal %s, %08llX; %s = %016llX, ra = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData, getPC<false>());
+                std::printf("[%08X:%08X] bgezal %s, %08llX; %s = %016llX, ra = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData, getPC());
                 break;
             case BranchOp::BGTZ:
                 std::printf("[%08X:%08X] bgtz %s, %08llX; %s = %016llX\n", pc, instr.raw, rsName, target, rsName, rsData);
@@ -1005,7 +1003,7 @@ void doCoprocessor(const Instruction instr) {
     if constexpr (ENABLE_DISASSEMBLER) {
         const char *rtName = REG_NAMES[rt];
 
-        const u32 pc = getPC<true>();
+        const u32 pc = getCurrentPC();
 
         switch (op) {
             case CoprocessorOpcode::MF:
@@ -1024,7 +1022,7 @@ void doCoprocessor(const Instruction instr) {
             case CoprocessorOpcode::CO:
                 break;
         default:
-            PLOG_FATAL << "Unrecognized coprocessor opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+            PLOG_FATAL << "Unrecognized coprocessor opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
 
             exit(0);
         }
@@ -1082,7 +1080,7 @@ void doCoprocessor(const Instruction instr) {
                         }
                         break;
                     default:
-                        PLOG_FATAL << "Unrecognized coprocessor branch opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+                        PLOG_FATAL << "Unrecognized coprocessor branch opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
 
                         exit(0);
                 }
@@ -1118,7 +1116,7 @@ void doCoprocessor(const Instruction instr) {
             }
             break;
         default:
-            PLOG_FATAL << "Unrecognized coprocessor opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+            PLOG_FATAL << "Unrecognized coprocessor opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
 
             exit(0);
     }
@@ -1129,7 +1127,7 @@ void doJump(const Instruction instr) {
     const u32 rd = instr.rType.rd;
     const u32 rs = instr.rType.rs;
 
-    u64 target = (getPC<false>() & 0xFFFFFFFFF0000000) | (instr.jType.target << 2);
+    u64 target = (getPC() & 0xFFFFFFFFF0000000) | (instr.jType.target << 2);
     if constexpr ((op == JumpOp::JALR) || (op == JumpOp::JR)) {
         target = get(rs);
     }
@@ -1138,17 +1136,17 @@ void doJump(const Instruction instr) {
         const char *rdName = REG_NAMES[rd];
         const char *rsName = REG_NAMES[rs];
 
-        const u32 pc = getPC<true>();
+        const u32 pc = getCurrentPC();
 
         switch (op) {
             case JumpOp::J:
                 std::printf("[%08X:%08X] j %08X\n", pc, instr.raw, (u32)target);
                 break;
             case JumpOp::JAL:
-                std::printf("[%08X:%08X] jal %08X; ra = %08llX\n", pc, instr.raw, (u32)target, getPC<false>());
+                std::printf("[%08X:%08X] jal %08X; ra = %08llX\n", pc, instr.raw, (u32)target, getPC());
                 break;
             case JumpOp::JALR:
-                std::printf("[%08X:%08X] jalr %s, %s; PC = %08llX, %s = %08llX\n", pc, instr.raw, rdName, rsName, target, rdName, getPC<false>());
+                std::printf("[%08X:%08X] jalr %s, %s; PC = %08llX, %s = %08llX\n", pc, instr.raw, rdName, rsName, target, rdName, getPC());
                 break;
             case JumpOp::JR:
                 std::printf("[%08X:%08X] jr %s; PC = %08llX\n", pc, instr.raw, rsName, target);
@@ -1184,7 +1182,7 @@ void doLoadStore(const Instruction instr) {
         const char *baseName = REG_NAMES[base];
         const char *rtName = REG_NAMES[rt];
 
-        const u32 pc = getPC<true>();
+        const u32 pc = getCurrentPC();
 
         const u64 data = get(rt);
 
@@ -1541,7 +1539,7 @@ void doInstruction() {
                         doALURegister<ALUOpReg::DSRA32>(instr);
                         break;
                     default:
-                        PLOG_FATAL << "Unrecognized function " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+                        PLOG_FATAL << "Unrecognized function " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
 
                         exit(0);
                 }
@@ -1566,7 +1564,7 @@ void doInstruction() {
                         doBranch<BranchOp::BGEZAL>(instr);
                         break;
                     default:
-                        PLOG_FATAL << "Unrecognized REGIMM opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+                        PLOG_FATAL << "Unrecognized REGIMM opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
 
                         exit(0);
                 }
@@ -1705,7 +1703,7 @@ void doInstruction() {
             doLoadStore<LoadStoreOp::SD>(instr);
             break;
         default:
-            PLOG_FATAL << "Unrecognized opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+            PLOG_FATAL << "Unrecognized opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
 
             exit(0);
     }
@@ -1714,7 +1712,7 @@ void doInstruction() {
 void run(const i64 cycles) {
     for (i64 i = 0; i < cycles; i++) {
         // Set current PC
-        regFile.cpc = getPC<false>();
+        regFile.cpc = getPC();
 
         advanceDelaySlot();
         doInstruction();

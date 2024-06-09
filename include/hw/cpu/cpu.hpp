@@ -76,16 +76,16 @@ bool isAlignedAddress(const u64 addr) requires std::is_unsigned_v<T> {
 u64 get(const u32 idx);
 
 // Returns the program counter
-template<bool isCurrentPC>
 u64 getPC();
+u64 getCurrentPC();
 
 // Sets the value of a GPR
 template<typename T>
 void set(const u32 idx, const T data) requires std::is_unsigned_v<T>;
 
 // Sets the program counter
-template<bool isBranch>
 void setPC(const u64 addr);
+void setBranchPC(const u64 addr);
 
 void branch(const u64 target, const bool condition, const u32 linkReg, const bool isLikely);
 

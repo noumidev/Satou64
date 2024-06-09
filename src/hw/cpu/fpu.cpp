@@ -305,7 +305,7 @@ void ADD(const Instruction instr) {
     }
     
     if constexpr (ENABLE_DISASSEMBLER) {
-        const u32 pc = getPC<true>();
+        const u32 pc = getCurrentPC();
 
         const f32 single = makeSingle(get<u32>(fd));
 
@@ -358,7 +358,7 @@ void CCOND(const Instruction instr) {
     regs.control.condition = (condition & flags) != 0;
 
     if constexpr (ENABLE_DISASSEMBLER) {
-        const u32 pc = getPC<true>();
+        const u32 pc = getCurrentPC();
 
         std::printf("[%08X:%08X] c.%s.%c %u, %u; %u = %lf, %u = %lf, COND = %u\n", pc, instr.raw, CONDITION_NAMES[condition], FORMAT_CHARS[format], fs, ft, fs, fsData, ft, ftData, regs.control.condition);
     }
@@ -389,7 +389,7 @@ void CVTD(const Instruction instr) {
     set<u64>(fd, data);
     
     if constexpr (ENABLE_DISASSEMBLER) {
-        const u32 pc = getPC<true>();
+        const u32 pc = getCurrentPC();
 
         const f64 double_ = makeDouble(data);
 
@@ -425,7 +425,7 @@ void CVTS(const Instruction instr) {
     set<u32>(fd, data);
     
     if constexpr (ENABLE_DISASSEMBLER) {
-        const u32 pc = getPC<true>();
+        const u32 pc = getCurrentPC();
 
         const f32 single = makeSingle(data);
 
@@ -456,7 +456,7 @@ void DIV(const Instruction instr) {
     }
     
     if constexpr (ENABLE_DISASSEMBLER) {
-        const u32 pc = getPC<true>();
+        const u32 pc = getCurrentPC();
 
         const f32 single = makeSingle(get<u32>(fd));
 
@@ -486,7 +486,7 @@ void MOV(const Instruction instr) {
     }
     
     if constexpr (ENABLE_DISASSEMBLER) {
-        const u32 pc = getPC<true>();
+        const u32 pc = getCurrentPC();
 
         const f32 single = makeSingle(get<u32>(fd));
 
@@ -517,7 +517,7 @@ void MUL(const Instruction instr) {
     }
     
     if constexpr (ENABLE_DISASSEMBLER) {
-        const u32 pc = getPC<true>();
+        const u32 pc = getCurrentPC();
 
         const f32 single = makeSingle(get<u32>(fd));
 
@@ -553,7 +553,7 @@ void TRUNCW(const Instruction instr) {
     set<u32>(fd, data);
     
     if constexpr (ENABLE_DISASSEMBLER) {
-        const u32 pc = getPC<true>();
+        const u32 pc = getCurrentPC();
 
         std::printf("[%08X:%08X] trunc.w.%c %u, %u; %u = %08X\n", pc, instr.raw, FORMAT_CHARS[format], fd, fs, fd, data);
     }
@@ -577,7 +577,7 @@ void doSingle(const Instruction instr) {
                 return CCOND<Format::Single>(instr);
             }
 
-            PLOG_FATAL << "Unrecognized SINGLE opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+            PLOG_FATAL << "Unrecognized SINGLE opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
 
             exit(0);
     }
@@ -589,7 +589,7 @@ void doDouble(const Instruction instr) {
         case Opcode::CVTS:
             return CVTS<Format::Double>(instr);
         default:
-            PLOG_FATAL << "Unrecognized DOUBLE opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+            PLOG_FATAL << "Unrecognized DOUBLE opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
 
             exit(0);
     }
@@ -603,7 +603,7 @@ void doWord(const Instruction instr) {
         case Opcode::CVTD:
             return CVTD<Format::Word>(instr);
         default:
-            PLOG_FATAL << "Unrecognized WORD opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getPC<true>() << ")";
+            PLOG_FATAL << "Unrecognized WORD opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
 
             exit(0);
     }
