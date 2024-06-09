@@ -73,7 +73,16 @@ void reset() {
 }
 
 void startDMAFromPIF() {
-    PLOG_VERBOSE << "DMA from PIF requested (DRAM address = " << std::hex << regs.dramaddr.addr << ", PIF RAM address = " << (regs.adrd64b.addr << 2) << ")";
+    if (regs.status.dmaBusy != 0) {
+        PLOG_ERROR << "SI DMA is still active";
+
+        return;
+    }
+
+    const u64 dramaddr = regs.dramaddr.addr;
+    const u64 pifaddr = ((u64)regs.adrd64b.addr) << 2;
+
+    PLOG_VERBOSE << "DMA from PIF requested (DRAM address = " << std::hex << dramaddr << ", PIF RAM address = " << pifaddr << ")";
 
     regs.status.dmaBusy = 1;
 
@@ -82,7 +91,16 @@ void startDMAFromPIF() {
 }
 
 void startDMAToPIF() {
-    PLOG_VERBOSE << "DMA to PIF requested (DRAM address = " << std::hex << regs.dramaddr.addr << ", PIF RAM address = " << (regs.adwr64b.addr << 2) << ")";
+    if (regs.status.dmaBusy != 0) {
+        PLOG_ERROR << "SI DMA is still active";
+
+        return;
+    }
+
+    const u64 dramaddr = regs.dramaddr.addr;
+    const u64 pifaddr = ((u64)regs.adrd64b.addr) << 2;
+
+    PLOG_VERBOSE << "DMA to PIF requested (DRAM address = " << std::hex << dramaddr << ", PIF RAM address = " << pifaddr << ")";
 
     regs.status.dmaBusy = 1;
 
@@ -96,12 +114,12 @@ void doDMAFromPIF() {
     }
 
     const u64 dramaddr = regs.dramaddr.addr;
-    const u64 pifaddr = regs.adrd64b.addr << 2;
+    const u64 pifaddr = ((u64)regs.adrd64b.addr) << 2;
 
     PLOG_VERBOSE << "DMA from PIF (DRAM address = " << std::hex << dramaddr << ", PIF RAM address = " << pifaddr << ")";
 
     for (u64 i = 0; i < 64; i += 4) {
-        sys::memory::write(dramaddr + i, pif::read(pifaddr + i));
+        sys::memory::write(dramaddr + i, byteswap(pif::read<u32>(pifaddr + i)));
     }
 
     regs.status.dmaBusy = 0;
@@ -118,12 +136,12 @@ void doDMAToPIF() {
     }
 
     const u64 dramaddr = regs.dramaddr.addr;
-    const u64 pifaddr = regs.adwr64b.addr << 2;
+    const u64 pifaddr = ((u64)regs.adwr64b.addr) << 2;
 
     PLOG_VERBOSE << "DMA to PIF (DRAM address = " << std::hex << dramaddr << ", PIF RAM address = " << pifaddr << ")";
 
     for (u64 i = 0; i < 64; i += 4) {
-        pif::write(pifaddr + i, sys::memory::read<u32>(dramaddr + i));
+        pif::write(pifaddr + i, byteswap(sys::memory::read<u32>(dramaddr + i)));
     }
 
     regs.status.dmaBusy = 0;
