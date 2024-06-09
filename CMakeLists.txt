@@ -44,6 +44,7 @@ set(SOURCES
     src/hw/cpu/cop0.cpp
     src/hw/cpu/cpu.cpp
     src/hw/cpu/fpu.cpp
+    src/hw/pif/joybus.cpp
     src/hw/pif/memory.cpp
     src/hw/pif/pif.cpp
     src/renderer/renderer.cpp
@@ -68,6 +69,7 @@ set(HEADERS
     include/hw/cpu/cop0.hpp
     include/hw/cpu/cpu.hpp
     include/hw/cpu/fpu.hpp
+    include/hw/pif/joybus.hpp
     include/hw/pif/memory.hpp
     include/hw/pif/pif.hpp
     include/renderer/renderer.hpp

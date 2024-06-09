@@ -19,6 +19,7 @@
 #include "hw/sp.hpp"
 #include "hw/vi.hpp"
 #include "hw/cpu/cpu.hpp"
+#include "hw/pif/joybus.hpp"
 #include "hw/pif/memory.hpp"
 #include "hw/pif/pif.hpp"
 
@@ -50,6 +51,7 @@ void init(const char *bootPath, const char *pifPath, const char *romPath) {
     hw::mi::init();
     hw::pi::init();
     hw::pif::init();
+    hw::pif::joybus::init();
     hw::ri::init();
     hw::si::init();
     hw::sp::init();
@@ -71,6 +73,7 @@ void deinit() {
     hw::mi::deinit();
     hw::pi::deinit();
     hw::pif::deinit();
+    hw::pif::joybus::deinit();
     hw::ri::deinit();
     hw::si::deinit();
     hw::sp::deinit();
@@ -108,6 +111,7 @@ void reset() {
     hw::mi::reset();
     hw::pi::reset();
     hw::pif::reset();
+    hw::pif::joybus::reset();
     hw::ri::reset();
     hw::si::reset();
     hw::sp::reset();
