@@ -96,6 +96,7 @@ constexpr const char *MODE_NAMES[RoundingMode::NumberOfRoundingModes] = {
 namespace Opcode {
     enum : u32 {
         ADD = 0x00,
+        SUB = 0x01,
         MUL = 0x02,
         DIV = 0x03,
         MOV = 0x06,
@@ -298,6 +299,9 @@ void ADD(const Instruction instr) {
         case Format::Single:
             set(fd, makeWord(makeSingle(get<u32>(fs)) + makeSingle(get<u32>(ft))));
             break;
+        case Format::Double:
+            set(fd, makeLong(makeDouble(get<u64>(fs)) + makeDouble(get<u64>(ft))));
+            break;
         default:
             PLOG_FATAL << "Unimplemented format " << FORMAT_NAMES[format];
 
@@ -307,9 +311,12 @@ void ADD(const Instruction instr) {
     if constexpr (ENABLE_DISASSEMBLER) {
         const u32 pc = getCurrentPC();
 
-        const f32 single = makeSingle(get<u32>(fd));
+        f64 data = makeDouble(get<u64>(fd));
+        if (format == Format::Single) {
+            data = (f64)makeSingle(get<u32>(fd));
+        }
 
-        std::printf("[%08X:%08X] add.%c %u, %u, %u; %u = %f\n", pc, instr.raw, FORMAT_CHARS[format], fd, fs, ft, fd, single);
+        std::printf("[%08X:%08X] add.%c %u, %u, %u; %u = %lf\n", pc, instr.raw, FORMAT_CHARS[format], fd, fs, ft, fd, data);
     }
 }
 
@@ -449,6 +456,9 @@ void DIV(const Instruction instr) {
         case Format::Single:
             set(fd, makeWord(makeSingle(get<u32>(fs)) / makeSingle(get<u32>(ft))));
             break;
+        case Format::Double:
+            set(fd, makeLong(makeDouble(get<u64>(fs)) / makeDouble(get<u64>(ft))));
+            break;
         default:
             PLOG_FATAL << "Unimplemented format " << FORMAT_NAMES[format];
 
@@ -458,9 +468,12 @@ void DIV(const Instruction instr) {
     if constexpr (ENABLE_DISASSEMBLER) {
         const u32 pc = getCurrentPC();
 
-        const f32 single = makeSingle(get<u32>(fd));
+        f64 data = makeDouble(get<u64>(fd));
+        if (format == Format::Single) {
+            data = (f64)makeSingle(get<u32>(fd));
+        }
 
-        std::printf("[%08X:%08X] div.%c %u, %u, %u; %u = %f\n", pc, instr.raw, FORMAT_CHARS[format], fd, fs, ft, fd, single);
+        std::printf("[%08X:%08X] div.%c %u, %u, %u; %u = %lf\n", pc, instr.raw, FORMAT_CHARS[format], fd, fs, ft, fd, data);
     }
 }
 
@@ -479,6 +492,9 @@ void MOV(const Instruction instr) {
         case Format::Single:
             set(fd, get<u32>(fs));
             break;
+        case Format::Double:
+            set(fd, get<u64>(fs));
+            break;
         default:
             PLOG_FATAL << "Unimplemented format " << FORMAT_NAMES[format];
 
@@ -488,9 +504,12 @@ void MOV(const Instruction instr) {
     if constexpr (ENABLE_DISASSEMBLER) {
         const u32 pc = getCurrentPC();
 
-        const f32 single = makeSingle(get<u32>(fd));
+        f64 data = makeDouble(get<u64>(fd));
+        if (format == Format::Single) {
+            data = (f64)makeSingle(get<u32>(fd));
+        }
 
-        std::printf("[%08X:%08X] mov.%c %u, %u; %u = %f\n", pc, instr.raw, FORMAT_CHARS[format], fd, fs, fd, single);
+        std::printf("[%08X:%08X] mov.%c %u, %u; %u = %lf\n", pc, instr.raw, FORMAT_CHARS[format], fd, fs, fd, data);
     }
 }
 
@@ -510,6 +529,9 @@ void MUL(const Instruction instr) {
         case Format::Single:
             set(fd, makeWord(makeSingle(get<u32>(fs)) * makeSingle(get<u32>(ft))));
             break;
+        case Format::Double:
+            set(fd, makeLong(makeDouble(get<u64>(fs)) * makeDouble(get<u64>(ft))));
+            break;
         default:
             PLOG_FATAL << "Unimplemented format " << FORMAT_NAMES[format];
 
@@ -519,9 +541,49 @@ void MUL(const Instruction instr) {
     if constexpr (ENABLE_DISASSEMBLER) {
         const u32 pc = getCurrentPC();
 
-        const f32 single = makeSingle(get<u32>(fd));
+        f64 data = makeDouble(get<u64>(fd));
+        if (format == Format::Single) {
+            data = (f64)makeSingle(get<u32>(fd));
+        }
 
-        std::printf("[%08X:%08X] mul.%c %u, %u, %u; %u = %f\n", pc, instr.raw, FORMAT_CHARS[format], fd, fs, ft, fd, single);
+        std::printf("[%08X:%08X] mul.%c %u, %u, %u; %u = %lf\n", pc, instr.raw, FORMAT_CHARS[format], fd, fs, ft, fd, data);
+    }
+}
+
+template<int format>
+void SUB(const Instruction instr) {
+    if ((format != Format::Single) && (format != Format::Double)) {
+        PLOG_FATAL << "Invalid format for SUB";
+
+        exit(0);
+    }
+
+    const u32 fd = instr.fType.fd;
+    const u32 fs = instr.fType.fs;
+    const u32 ft = instr.fType.ft;
+
+    switch (format) {
+        case Format::Single:
+            set(fd, makeWord(makeSingle(get<u32>(fs)) - makeSingle(get<u32>(ft))));
+            break;
+        case Format::Double:
+            set(fd, makeLong(makeDouble(get<u64>(fs)) - makeDouble(get<u64>(ft))));
+            break;
+        default:
+            PLOG_FATAL << "Unimplemented format " << FORMAT_NAMES[format];
+
+            exit(0);
+    }
+    
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const u32 pc = getCurrentPC();
+
+        f64 data = makeDouble(get<u64>(fd));
+        if (format == Format::Single) {
+            data = (f64)makeSingle(get<u32>(fd));
+        }
+
+        std::printf("[%08X:%08X] sub.%c %u, %u, %u; %u = %lf\n", pc, instr.raw, FORMAT_CHARS[format], fd, fs, ft, fd, data);
     }
 }
 
@@ -586,9 +648,25 @@ void doSingle(const Instruction instr) {
 void doDouble(const Instruction instr) {
     const u32 funct = instr.rType.funct;
     switch (funct) {
+        case Opcode::ADD:
+            return ADD<Format::Double>(instr);
+        case Opcode::SUB:
+            return SUB<Format::Double>(instr);
+        case Opcode::MUL:
+            return MUL<Format::Double>(instr);
+        case Opcode::DIV:
+            return DIV<Format::Double>(instr);
+        case Opcode::MOV:
+            return MOV<Format::Double>(instr);
+        case Opcode::TRUNCW:
+            return TRUNCW<Format::Double>(instr);
         case Opcode::CVTS:
             return CVTS<Format::Double>(instr);
         default:
+            if (funct >= Opcode::CCOND) {
+                return CCOND<Format::Double>(instr);
+            }
+
             PLOG_FATAL << "Unrecognized DOUBLE opcode " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
 
             exit(0);

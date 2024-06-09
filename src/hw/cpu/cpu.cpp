@@ -185,6 +185,7 @@ namespace CoprocessorOpcode {
 
 namespace CoprocessorBranchOpcode {
     enum : u32 {
+        BCF = 0,
         BCTL = 3,
     };
 }
@@ -233,6 +234,7 @@ enum class ALUOpReg {
 };
 
 enum class BranchOp {
+    BC1F,
     BC1TL,
     BEQ,
     BEQL,
@@ -891,6 +893,9 @@ void doBranch(const Instruction instr) {
         const u32 pc = getCurrentPC();
 
         switch (op) {
+            case BranchOp::BC1F:
+                std::printf("[%08X:%08X] bc1f %08llX\n", pc, instr.raw, target);
+                break;
             case BranchOp::BC1TL:
                 std::printf("[%08X:%08X] bc1tl %08llX\n", pc, instr.raw, target);
                 break;
@@ -937,6 +942,9 @@ void doBranch(const Instruction instr) {
     }
 
     switch (op) {
+        case BranchOp::BC1F:
+            branch(target, !fpu::getCondition(), Register::R0, false);
+            break;
         case BranchOp::BC1TL:
             branch(target, fpu::getCondition(), Register::R0, true);
             break;
@@ -1069,6 +1077,16 @@ void doCoprocessor(const Instruction instr) {
             {
                 const u32 op = instr.rType.rt;
                 switch (op) {
+                    case CoprocessorBranchOpcode::BCF:
+                        switch (coprocessor) {
+                            case Coprocessor::SystemControl:
+                                PLOG_FATAL << "Invalid coprocessor for BCF";
+
+                                exit(0);
+                            case Coprocessor::FPU:
+                                return doBranch<BranchOp::BC1F>(instr);
+                        }
+                        break;
                     case CoprocessorBranchOpcode::BCTL:
                         switch (coprocessor) {
                             case Coprocessor::SystemControl:
