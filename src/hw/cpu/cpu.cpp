@@ -154,6 +154,8 @@ namespace SpecialOpcode {
         MULTU = 0x19,
         DIV = 0x1A,
         DIVU = 0x1B,
+        DMULTU = 0x1D,
+        DDIVU = 0x1F,
         ADD = 0x20,
         ADDU = 0x21,
         SUBU = 0x23,
@@ -207,8 +209,10 @@ enum class ALUOpReg {
     ADD,
     ADDU,
     AND,
+    DDIVU,
     DIV,
     DIVU,
+    DMULTU,
     DSLL,
     DSLLV,
     DSLL32,
@@ -654,6 +658,22 @@ void doALURegister(const Instruction instr) {
         case ALUOpReg::AND:
             set(rd, rsData & rtData);
             break;
+        case ALUOpReg::DDIVU:
+            {
+                const u64 n = rsData;
+                const u64 d = rtData;
+
+                if (d == 0) {
+                    PLOG_ERROR << "DDIVU by zero";
+
+                    set(Register::LO, (u64)-1LL);
+                    set(Register::HI, n);
+                } else {
+                    set(Register::LO, n / d);
+                    set(Register::HI, n % d);
+                }
+            }
+            break;
         case ALUOpReg::DIV:
             {
                 const i32 n = (i32)rsData;
@@ -694,6 +714,14 @@ void doALURegister(const Instruction instr) {
                     set(Register::LO, n / d);
                     set(Register::HI, n % d);
                 }
+            }
+            break;
+        case ALUOpReg::DMULTU:
+            {
+                const __uint128_t res = (__uint128_t)rsData * (__uint128_t)rtData;
+
+                set(Register::LO, (u64)res);
+                set(Register::HI, (u64)(res >> 64));
             }
             break;
         case ALUOpReg::DSLL:
@@ -793,11 +821,17 @@ void doALURegister(const Instruction instr) {
             case ALUOpReg::AND:
                 std::printf("[%08X:%08X] and %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
                 break;
+            case ALUOpReg::DDIVU:
+                std::printf("[%08X:%08X] ddivu %s, %s; LO = %016llX, HI = %016llX\n", pc, instr.raw, rsName, rtName, get(Register::LO), get(Register::HI));
+                break;
             case ALUOpReg::DIV:
                 std::printf("[%08X:%08X] div %s, %s; LO = %016llX, HI = %016llX\n", pc, instr.raw, rsName, rtName, get(Register::LO), get(Register::HI));
                 break;
             case ALUOpReg::DIVU:
                 std::printf("[%08X:%08X] divu %s, %s; LO = %016llX, HI = %016llX\n", pc, instr.raw, rsName, rtName, get(Register::LO), get(Register::HI));
+                break;
+            case ALUOpReg::DMULTU:
+                std::printf("[%08X:%08X] dmultu %s, %s; LO = %016llX, HI = %016llX\n", pc, instr.raw, rsName, rtName, get(Register::LO), get(Register::HI));
                 break;
             case ALUOpReg::DSLL:
                 std::printf("[%08X:%08X] dsll %s, %s, %u; %s = %016llX\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
@@ -1519,6 +1553,12 @@ void doInstruction() {
                         break;
                     case SpecialOpcode::DIVU:
                         doALURegister<ALUOpReg::DIVU>(instr);
+                        break;
+                    case SpecialOpcode::DMULTU:
+                        doALURegister<ALUOpReg::DMULTU>(instr);
+                        break;
+                    case SpecialOpcode::DDIVU:
+                        doALURegister<ALUOpReg::DDIVU>(instr);
                         break;
                     case SpecialOpcode::ADD:
                         doALURegister<ALUOpReg::ADD>(instr);
