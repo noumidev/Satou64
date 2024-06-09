@@ -76,6 +76,7 @@ void changeResolution(const u32 width) {
     screen.width = width;
     switch (width) {
         case 320:
+        case 336:
             screen.height = 256;
             break;
         case 640:
