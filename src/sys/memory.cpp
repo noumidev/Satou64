@@ -156,9 +156,10 @@ u8 read(const u64 paddr) {
         return hw::pif::read<u8>(paddr);
     }
 
-    PLOG_FATAL << "Unrecognized read8 (address = " << std::hex << paddr << ")";
+    // Try to read I/O
+    PLOG_WARNING << "8-bit I/O read";
 
-    exit(0);
+    return (u8)readIO(paddr);
 }
 
 template<>
