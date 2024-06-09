@@ -11,7 +11,25 @@
 
 #include <plog/Log.h>
 
+#include "hw/rdp/rdp.hpp"
+
 namespace hw::dp {
+
+union START {
+    u32 raw;
+    struct {
+        u32 addr : 24;
+        u32 : 8;
+    };
+};
+
+union END {
+    u32 raw;
+    struct {
+        u32 addr : 24;
+        u32 : 8;
+    };
+};
 
 union STATUS {
     u32 raw;
@@ -31,6 +49,8 @@ union STATUS {
 };
 
 struct Registers {
+    START start;
+    END end;
     STATUS status;
 };
 
@@ -59,6 +79,18 @@ u32 readIO(const u64 ioaddr) {
 
 void writeIO(const u64 ioaddr, const u32 data) {
     switch (ioaddr) {
+        case IORegister::START:
+            PLOG_INFO << "START write (data = " << std::hex << data << ")";
+
+            regs.start.raw = data;
+            break;
+        case IORegister::END:
+            PLOG_INFO << "END write (data = " << std::hex << data << ")";
+
+            regs.end.raw = data;
+
+            regs.start.raw = rdp::processCommandList(regs.start.addr, regs.end.addr);
+            break;
         default:
             PLOG_FATAL << "Unrecognized IO write (address = " << std::hex << ioaddr << ", data = " << data << ")";
 

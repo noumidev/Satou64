@@ -22,6 +22,8 @@
 #include "hw/pif/joybus.hpp"
 #include "hw/pif/memory.hpp"
 #include "hw/pif/pif.hpp"
+#include "hw/rdp/rasterizer.hpp"
+#include "hw/rdp/rdp.hpp"
 
 #include "renderer/renderer.hpp"
 
@@ -74,6 +76,8 @@ void init(const char *bootPath, const char *pifPath, const char *romPath) {
     hw::pi::init();
     hw::pif::init();
     hw::pif::joybus::init();
+    hw::rdp::init();
+    hw::rdp::rasterizer::init();
     hw::ri::init();
     hw::si::init();
     hw::sp::init();
@@ -96,6 +100,8 @@ void deinit() {
     hw::pi::deinit();
     hw::pif::deinit();
     hw::pif::joybus::deinit();
+    hw::rdp::deinit();
+    hw::rdp::rasterizer::deinit();
     hw::ri::deinit();
     hw::si::deinit();
     hw::sp::deinit();
@@ -134,6 +140,8 @@ void reset() {
     hw::pi::reset();
     hw::pif::reset();
     hw::pif::joybus::reset();
+    hw::rdp::reset();
+    hw::rdp::rasterizer::reset();
     hw::ri::reset();
     hw::si::reset();
     hw::sp::reset();

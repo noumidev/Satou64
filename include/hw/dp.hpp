@@ -13,6 +13,8 @@ namespace hw::dp {
 namespace IORegister {
     enum : u64 {
         IOBase = 0x4100000,
+        START = IOBase + 0x00,
+        END = IOBase + 0x04,
         STATUS = IOBase + 0x0C,
     };
 }
