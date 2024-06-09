@@ -152,6 +152,10 @@ u8 read(const u64 paddr) {
         return pifROM[paddr - MemoryBase::PIF_ROM];
     }
 
+    if ((paddr >= MemoryBase::PIF_RAM) && (paddr < (MemoryBase::PIF_RAM + MemorySize::PIF_RAM))) {
+        return hw::pif::read<u8>(paddr);
+    }
+
     PLOG_FATAL << "Unrecognized read8 (address = " << std::hex << paddr << ")";
 
     exit(0);
@@ -181,6 +185,10 @@ u16 read(const u64 paddr) {
         std::memcpy(&data, &pifROM[paddr - MemoryBase::PIF_ROM], sizeof(u16));
 
         return byteswap(data);
+    }
+
+    if ((paddr >= MemoryBase::PIF_RAM) && (paddr < (MemoryBase::PIF_RAM + MemorySize::PIF_RAM))) {
+        return byteswap(hw::pif::read<u16>(paddr));
     }
 
     PLOG_FATAL << "Unrecognized read16 (address = " << std::hex << paddr << ")";
@@ -215,7 +223,7 @@ u32 read(const u64 paddr) {
     }
 
     if ((paddr >= MemoryBase::PIF_RAM) && (paddr < (MemoryBase::PIF_RAM + MemorySize::PIF_RAM))) {
-        return byteswap(hw::pif::read(paddr));
+        return byteswap(hw::pif::read<u32>(paddr));
     }
 
     // Try to read I/O

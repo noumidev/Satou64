@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <type_traits>
+
 #include "common/types.hpp"
 
 namespace hw::pif {
@@ -19,7 +21,8 @@ void setInterruptAPending();
 void setRCPPort(const bool isRead, const bool is64B);
 
 // Reads data from PIF RAM
-u32 read(const u64 paddr);
+template<typename T>
+T read(const u64 paddr) requires std::is_unsigned_v<T>;
 
 // Writes data to PIF RAM
 void write(const u64 paddr, const u32 data);

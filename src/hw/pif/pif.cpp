@@ -43,6 +43,20 @@ void setRCPPort(const bool isRead, const bool is64B) {
     pifNUS.setRCPPort(isRead, is64B);
 }
 
+template<>
+u8 read(const u64 paddr) {
+    return *(u8 *)memory::getRAMPointer(paddr - sys::memory::MemoryBase::PIF_RAM + sys::memory::MemorySize::PIF_RAM);
+}
+
+template<>
+u16 read(const u64 paddr) {
+    u16 data;
+    std::memcpy(&data, memory::getRAMPointer(paddr - sys::memory::MemoryBase::PIF_RAM + sys::memory::MemorySize::PIF_RAM), sizeof(u16));
+
+    return data;
+}
+
+template<>
 u32 read(const u64 paddr) {
     u32 data;
     std::memcpy(&data, memory::getRAMPointer(paddr - sys::memory::MemoryBase::PIF_RAM + sys::memory::MemorySize::PIF_RAM), sizeof(u32));
