@@ -14,6 +14,7 @@
 
 #include "hw/cic.hpp"
 #include "hw/si.hpp"
+#include "hw/pif/joybus.hpp"
 
 namespace hw::sm5 {
 
@@ -35,6 +36,7 @@ namespace Opcode {
         TB = 0x6D,
         TC = 0x6E,
         TAM = 0x6F,
+        INL = 0x70,
         OUTL = 0x71,
         IN = 0x74,
         OUT = 0x75,
@@ -78,22 +80,17 @@ namespace Imm4Opcode {
 
 namespace Port {
     enum : u8 {
-        JoyData = 0,
-        JoyBus = 2,
-        JoyStatus = 3,
-        JoyError = 4,
+        JoybusTransmit = 0,
+        JoybusReceive = 1,
+        JoybusControl = 2,
+        JoybusStatus = 3,
+        JoybusError = 4,
         CIC = 5,
         BootROMDisable = 6,
         RCP = 7,
         RNG = 9,
-        JoyChannelSelect = 10,
+        JoybusChannel = 10,
         InterruptEnable = 14,
-    };
-}
-
-namespace JoyError {
-    enum : u8 {
-        Error = 1 << 3,
     };
 }
 
@@ -168,14 +165,12 @@ u8 SM5::fetch() {
 
 u8 SM5::readPort(const u8 port) {
     switch (port) {
-        case Port::JoyStatus:
-            PLOG_WARNING << "Read from Joy Status";
-
-            return 0xA;
-        case Port::JoyError:
-            PLOG_WARNING << "Read from Joy Error";
-
-            return JoyError::Error;
+        case Port::JoybusReceive:
+            return pif::joybus::readReceive();
+        case Port::JoybusStatus:
+            return pif::joybus::readStatus();
+        case Port::JoybusError:
+            return pif::joybus::readError();
         case Port::CIC:
             return hw::cic::read();
         case Port::RCP:
@@ -186,10 +181,8 @@ u8 SM5::readPort(const u8 port) {
             PLOG_WARNING << "Read from RNG";
 
             return 0xFF;
-        case Port::JoyChannelSelect:
-            PLOG_WARNING << "Read from Joy Channel Select";
-
-            return regs.joyChannel;
+        case Port::JoybusChannel:
+            return pif::joybus::readChannel();
         default:
             PLOG_FATAL << "Unrecognized read from port " << (u16)port;
 
@@ -199,15 +192,12 @@ u8 SM5::readPort(const u8 port) {
 
 void SM5::writePort(const u8 port, const u8 data) {
     switch (port) {
-        case Port::JoyData:
-            PLOG_WARNING << "Write to Joy Data (data = " << std::hex << (u16)(data & 0xF) << ")";
-            break;
-        case Port::JoyBus:
-            PLOG_WARNING << "Write to JoyBus (data = " << std::hex << (u16)(data & 0xF) << ")";
-            break;
-        case Port::JoyError:
-            PLOG_WARNING << "Write to Joy Error (data = " << std::hex << (u16)(data & 0xF) << ")";
-            break;
+        case Port::JoybusTransmit:
+            return pif::joybus::writeTransmit(data & 0xF);
+        case Port::JoybusControl:
+            return pif::joybus::writeControl(data & 0xF);
+        case Port::JoybusError:
+            return pif::joybus::writeError(data & 0xF);
         case Port::CIC:
             return hw::cic::write(data & 0xF);
         case Port::BootROMDisable:
@@ -216,11 +206,8 @@ void SM5::writePort(const u8 port, const u8 data) {
         case Port::RNG:
             PLOG_WARNING << "Write to RNG (data = " << std::hex << (u16)(data & 0xF) << ")";
             break;
-        case Port::JoyChannelSelect:
-            PLOG_WARNING << "Write to Joy Channel Select (data = " << std::hex << (u16)(data & 0xF) << ")";
-
-            regs.joyChannel = data & 0xF;
-            break;
+        case Port::JoybusChannel:
+            return pif::joybus::writeChannel(data & 0xF);
         case Port::InterruptEnable:
             PLOG_VERBOSE << "Write to Interrupt Enable (data = " << std::hex << (u16)(data & 0xF) << ")";
 
@@ -523,6 +510,16 @@ void SM5::INCB(const Instruction instr) {
     if constexpr (ENABLE_DISASSEMBLER) {
         std::printf("[%03X:%02X] incb\n", regs.oldPC, instr.raw);
     }
+}
+
+void SM5::INL(const Instruction instr) {
+    if constexpr (ENABLE_DISASSEMBLER) {
+        std::printf("[%03X:%02X] inl\n", regs.oldPC, instr.raw);
+    }
+
+    const u8 data = readPort(Port::JoybusReceive);
+
+    regs.xa.a = data & 0xF;
 }
 
 void SM5::LAX(const Instruction instr) {
@@ -863,6 +860,8 @@ void SM5::doInstruction() {
             return TC(instr);
         case Opcode::TAM:
             return TAM(instr);
+        case Opcode::INL:
+            return INL(instr);
         case Opcode::OUTL:
             return OUTL(instr);
         case Opcode::IN:

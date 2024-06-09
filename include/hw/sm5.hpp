@@ -139,6 +139,7 @@ private:
     void IE(const Instruction instr);
     void IN(const Instruction instr);
     void INCB(const Instruction instr);
+    void INL(const Instruction instr);
     void LAX(const Instruction instr);
     void LBLX(const Instruction instr);
     void LBMX(const Instruction instr);

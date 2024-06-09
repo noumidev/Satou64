@@ -13,5 +13,28 @@ void init();
 void deinit();
 
 void reset();
+void resetTXBuffer();
+
+void prepareReceiveData(const u8 length);
+
+void setActiveChannel(const u8 channel);
+
+u8 calculateCRC(const u8 *data);
+
+void doCommand();
+
+void cmdControllerState();
+void cmdInfo();
+void cmdWriteControllerAccessory();
+
+u8 readChannel();
+u8 readError();
+u8 readReceive();
+u8 readStatus();
+
+void writeChannel(const u8 data);
+void writeControl(const u8 data);
+void writeError(const u8 data);
+void writeTransmit(const u8 data);
 
 }

@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "common/types.hpp"
+
 namespace sys::emulator {
 
 void init(const char *bootPath, const char *pifPath, const char *romPath);
@@ -14,6 +16,9 @@ void run();
 
 void reset();
 
+u32 getButtonState();
+
 void finishFrame();
+void updateButtonState();
 
 }

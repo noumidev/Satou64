@@ -30,6 +30,28 @@
 
 namespace sys::emulator {
 
+namespace ControllerButton {
+    enum : u32 {
+        DpadRight = 1 << 0,
+        DpadLeft = 1 << 1,
+        DpadDown = 1 << 2,
+        DpadUp = 1 << 3,
+        Start = 1 << 4,
+        Z = 1 << 5,
+        B = 1 << 6,
+        A = 1 << 7,
+        Reset = 1 << 8,
+        LeftTrigger = 1 << 10,
+        RightTrigger = 1 << 11,
+        CUp = 1 << 12,
+        CDown = 1 << 13,
+        CLeft = 1 << 14,
+        CRight = 1 << 15,
+    };
+}
+
+u32 buttonState;
+
 bool isRunning;
 
 void init(const char *bootPath, const char *pifPath, const char *romPath) {
@@ -116,16 +138,87 @@ void reset() {
     hw::si::reset();
     hw::sp::reset();
     hw::vi::reset();
+
+    buttonState = 0;
+}
+
+u32 getButtonState() {
+    return buttonState;
 }
 
 void finishFrame() {
     renderer::drawFrameBuffer(hw::vi::getOrigin(), hw::vi::getFormat());
+
+    updateButtonState();
+}
+
+void updateButtonState() {
+    const u8 *keyState = SDL_GetKeyboardState(NULL);
+
+    buttonState = 0;
 
     SDL_Event event;
     while (SDL_PollEvent(&event) != 0) {
         switch (event.type) {
             case SDL_QUIT:
                 isRunning = false;
+                break;
+            case SDL_KEYDOWN:
+                if (keyState[SDL_GetScancodeFromKey(SDLK_d)] != 0) {
+                    buttonState |= ControllerButton::DpadRight;
+                }
+
+                if (keyState[SDL_GetScancodeFromKey(SDLK_a)] != 0) {
+                    buttonState |= ControllerButton::DpadLeft;
+                }
+
+                if (keyState[SDL_GetScancodeFromKey(SDLK_s)] != 0) {
+                    buttonState |= ControllerButton::DpadDown;
+                }
+
+                if (keyState[SDL_GetScancodeFromKey(SDLK_w)] != 0) {
+                    buttonState |= ControllerButton::DpadUp;
+                }
+
+                if (keyState[SDL_GetScancodeFromKey(SDLK_KP_ENTER)] != 0) {
+                    buttonState |= ControllerButton::Start;
+                }
+
+                if (keyState[SDL_GetScancodeFromKey(SDLK_m)] != 0) {
+                    buttonState |= ControllerButton::Z;
+                }
+
+                if (keyState[SDL_GetScancodeFromKey(SDLK_b)] != 0) {
+                    buttonState |= ControllerButton::B;
+                }
+
+                if (keyState[SDL_GetScancodeFromKey(SDLK_n)] != 0) {
+                    buttonState |= ControllerButton::A;
+                }
+
+                if (keyState[SDL_GetScancodeFromKey(SDLK_q)] != 0) {
+                    buttonState |= ControllerButton::LeftTrigger;
+                }
+
+                if (keyState[SDL_GetScancodeFromKey(SDLK_e)] != 0) {
+                    buttonState |= ControllerButton::RightTrigger;
+                }
+
+                if (keyState[SDL_GetScancodeFromKey(SDLK_u)] != 0) {
+                    buttonState |= ControllerButton::CUp;
+                }
+
+                if (keyState[SDL_GetScancodeFromKey(SDLK_j)] != 0) {
+                    buttonState |= ControllerButton::CDown;
+                }
+
+                if (keyState[SDL_GetScancodeFromKey(SDLK_h)] != 0) {
+                    buttonState |= ControllerButton::CLeft;
+                }
+
+                if (keyState[SDL_GetScancodeFromKey(SDLK_k)] != 0) {
+                    buttonState |= ControllerButton::CRight;
+                }
                 break;
             default:
                 break;
