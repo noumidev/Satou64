@@ -180,7 +180,7 @@ void updateButtonState() {
                     buttonState |= ControllerButton::DpadUp;
                 }
 
-                if (keyState[SDL_GetScancodeFromKey(SDLK_KP_ENTER)] != 0) {
+                if (keyState[SDL_GetScancodeFromKey(SDLK_SPACE)] != 0) {
                     buttonState |= ControllerButton::Start;
                 }
 
