@@ -103,6 +103,7 @@ namespace Opcode {
         TRUNCW = 0x0D,
         CVTS = 0x20,
         CVTD = 0x21,
+        CVTW = 0x24,
         CCOND = 0x30,
     };
 }
@@ -440,6 +441,42 @@ void CVTS(const Instruction instr) {
     }
 }
 
+
+
+template<int format>
+void CVTW(const Instruction instr) {
+    if (format == Format::Word) {
+        PLOG_FATAL << "Invalid format for CVT.W";
+
+        exit(0);
+    }
+
+    const u32 fd = instr.fType.fd;
+    const u32 fs = instr.fType.fs;
+
+    u32 data;
+    switch (format) {
+        case Format::Single:
+            data = (u32)makeSingle(get<u32>(fs));
+            break;
+        case Format::Double:
+            data = (u32)makeDouble(get<u64>(fs));
+            break;
+        default:
+            PLOG_FATAL << "Unimplemented format " << FORMAT_NAMES[format];
+
+            exit(0);
+    }
+
+    set<u32>(fd, data);
+    
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const u32 pc = getCurrentPC();
+
+        std::printf("[%08X:%08X] cvt.w.%c %u, %u; %u = %08X\n", pc, instr.raw, FORMAT_CHARS[format], fd, fs, fd, data);
+    }
+}
+
 template<int format>
 void DIV(const Instruction instr) {
     if ((format != Format::Single) && (format != Format::Double)) {
@@ -634,6 +671,8 @@ void doSingle(const Instruction instr) {
             return MOV<Format::Single>(instr);
         case Opcode::TRUNCW:
             return TRUNCW<Format::Single>(instr);
+        case Opcode::CVTW:
+            return CVTW<Format::Single>(instr);
         default:
             if (funct >= Opcode::CCOND) {
                 return CCOND<Format::Single>(instr);
