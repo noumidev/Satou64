@@ -167,6 +167,7 @@ void doCommand() {
             cmdControllerState();
             break;
         case JoybusCommand::WriteControllerAccessory:
+            prepareReceiveData(34); // Two address bytes, 32 data bytes
             break;
         default:
             PLOG_FATAL << "Unrecognized Joybus command " << std::hex << (u16)command << " (channel = " << (u16)currentChannel << ")";
