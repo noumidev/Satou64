@@ -227,7 +227,7 @@ void cmdInfo() {
 void cmdWriteControllerAccessory() {
     PLOG_VERBOSE << "Write Controller Accessory (channel = " << (u16)currentChannel << ")";
 
-    const u8 crc = calculateCRC(&txBuffer[2]);
+    const u8 crc = calculateCRC(&txBuffer[3]);
 
     resetTXBuffer();
 
