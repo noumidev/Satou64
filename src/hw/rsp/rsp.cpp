@@ -11,6 +11,7 @@
 
 #include <plog/Log.h>
 
+#include "hw/dp.hpp"
 #include "hw/sp.hpp"
 #include "hw/cpu/cpu.hpp"
 
@@ -50,22 +51,31 @@ namespace Opcode {
         JAL = 0x03,
         BEQ = 0x04,
         BNE = 0x05,
+        BGTZ = 0x07,
         ADDI = 0x08,
         ANDI = 0x0C,
         ORI = 0x0D,
         LUI = 0x0F,
         COP0 = 0x10,
+        LB = 0x20,
+        LH = 0x21,
         LW = 0x23,
+        LBU = 0x24,
+        LHU = 0x25,
+        SB = 0x28,
         SW = 0x2B,
+        LWC2 = 0x32,
     };
 }
 
 namespace SpecialOpcode {
     enum : u32 {
         SLL = 0x00,
+        SRL = 0x02,
         JR = 0x08,
         BREAK = 0x0D,
         ADD = 0x20,
+        SUB = 0x22,
     };
 }
 
@@ -73,6 +83,12 @@ namespace CoprocessorOpcode {
     enum : u32 {
         MF = 0x00,
         MT = 0x04,
+    };
+}
+
+namespace VULoadOpcode {
+    enum : u32 {
+        LQV = 0x04,
     };
 }
 
@@ -86,10 +102,13 @@ enum class ALUOpImm {
 enum class ALUOpReg {
     ADD,
     SLL,
+    SRL,
+    SUB,
 };
 
 enum class BranchOp {
     BEQ,
+    BGTZ,
     BNE,
 };
 
@@ -100,7 +119,12 @@ enum class JumpOp {
 };
 
 enum class LoadStoreOp {
+    LB,
+    LBU,
+    LH,
+    LHU,
     LW,
+    SB,
     SW,
 };
 
@@ -290,6 +314,12 @@ void doALURegister(const Instruction instr) {
         case ALUOpReg::SLL:
             set(rd, rtData << sa);
             break;
+        case ALUOpReg::SRL:
+            set(rd, rtData >> sa);
+            break;
+        case ALUOpReg::SUB:
+            set(rd, rsData - rtData);
+            break;
     }
 
     if constexpr (ENABLE_DISASSEMBLER) {
@@ -311,6 +341,12 @@ void doALURegister(const Instruction instr) {
                 } else {
                     std::printf("[%03X:%08X] sll %s, %s, %u; %s = %08X\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
                 }
+                break;
+            case ALUOpReg::SRL:
+                std::printf("[%03X:%08X] srl %s, %s, %u; %s = %08X\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
+                break;
+            case ALUOpReg::SUB:
+                std::printf("[%03X:%08X] sub %s, %s, %s; %s = %08X\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
                 break;
         }
     }
@@ -339,6 +375,9 @@ void doBranch(const Instruction instr) {
             case BranchOp::BEQ:
                 std::printf("[%03X:%08X] beq %s, %s, %03X; %s = %08X, %s = %08X\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
                 break;
+            case BranchOp::BGTZ:
+                std::printf("[%03X:%08X] bgtz %s, %03X; %s = %08X\n", pc, instr.raw, rsName, target, rsName, rsData);
+                break;
             case BranchOp::BNE:
                 std::printf("[%03X:%08X] bne %s, %s, %03X; %s = %08X, %s = %08X\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
                 break;
@@ -348,6 +387,9 @@ void doBranch(const Instruction instr) {
     switch (op) {
         case BranchOp::BEQ:
             branch(target, rsData == rtData, Register::R0);
+            break;
+        case BranchOp::BGTZ:
+            branch(target, (i32)rsData > 0, Register::R0);
             break;
         case BranchOp::BNE:
             branch(target, rsData != rtData, Register::R0);
@@ -386,13 +428,29 @@ void doCoprocessor(const Instruction instr) {
         case CoprocessorOpcode::MF:
             switch (coprocessor) {
                 case 0:
-                    return set(rt, sp::readIO(sp::IORegister::IOBase + 4 * rd));
+                    if (rd < 8) {
+                        return set(rt, sp::readIO(sp::IORegister::IOBase + 4 * rd));
+                    } else if (rd < 16) {
+                        return set(rt, dp::readIO(dp::IORegister::IOBase + 4 * (rd - 8)));
+                    } else {
+                        PLOG_FATAL << "Unrecognized COP0 register " << rd;
+
+                        exit(0);
+                    }
             }
             break;
         case CoprocessorOpcode::MT:
             switch (coprocessor) {
                 case 0:
-                    return sp::writeIO(sp::IORegister::IOBase + 4 * rd, rtData);
+                    if (rd < 8) {
+                        return sp::writeIO(sp::IORegister::IOBase + 4 * rd, rtData);
+                    } else if (rd < 16) {
+                        return dp::writeIO(dp::IORegister::IOBase + 4 * (rd - 8), rtData);
+                    } else {
+                        PLOG_FATAL << "Unrecognized COP0 register " << rd;
+
+                        exit(0);
+                    }
             }
             break;
         default:
@@ -461,8 +519,23 @@ void doLoadStore(const Instruction instr) {
         const u32 data = get(rt);
 
         switch (op) {
+            case LoadStoreOp::LB:
+                std::printf("[%03X:%08X] lb %s, %04X(%s); %s = [%03X]\n", pc, instr.raw, rtName, imm, baseName, rtName, addr);
+                break;
+            case LoadStoreOp::LBU:
+                std::printf("[%03X:%08X] lbu %s, %04X(%s); %s = [%03X]\n", pc, instr.raw, rtName, imm, baseName, rtName, addr);
+                break;
+            case LoadStoreOp::LH:
+                std::printf("[%03X:%08X] lh %s, %04X(%s); %s = [%03X]\n", pc, instr.raw, rtName, imm, baseName, rtName, addr);
+                break;
+            case LoadStoreOp::LHU:
+                std::printf("[%03X:%08X] lhu %s, %04X(%s); %s = [%03X]\n", pc, instr.raw, rtName, imm, baseName, rtName, addr);
+                break;
             case LoadStoreOp::LW:
                 std::printf("[%03X:%08X] lw %s, %04X(%s); %s = [%03X]\n", pc, instr.raw, rtName, imm, baseName, rtName, addr);
+                break;
+            case LoadStoreOp::SB:
+                std::printf("[%03X:%08X] sb %s, %04X(%s); [%03X] = %02X\n", pc, instr.raw, rtName, imm, baseName, addr, (u8)data);
                 break;
             case LoadStoreOp::SW:
                 std::printf("[%03X:%08X] sw %s, %04X(%s); [%03X] = %08X\n", pc, instr.raw, rtName, imm, baseName, addr, data);
@@ -471,12 +544,55 @@ void doLoadStore(const Instruction instr) {
     }
 
     switch (op) {
+        case LoadStoreOp::LB:
+            set(rt, (u32)(i8)read<u8>(addr));
+            break;
+        case LoadStoreOp::LBU:
+            set(rt, (u32)read<u8>(addr));
+            break;
+        case LoadStoreOp::LH:
+            set(rt, (u32)(i16)read<u16>(addr));
+            break;
+        case LoadStoreOp::LHU:
+            set(rt, (u32)read<u16>(addr));
+            break;
         case LoadStoreOp::LW:
             set(rt, read<u32>(addr));
+            break;
+        case LoadStoreOp::SB:
+            write(addr, (u8)get(rt));
             break;
         case LoadStoreOp::SW:
             write(addr, get(rt));
             break;
+    }
+}
+
+void LQV(const VUInstruction instr) {
+    const u32 base = instr.loadType.base;
+    const u32 vt = instr.loadType.vt;
+
+    const u32 element = instr.loadType.element;
+
+    const u32 offset = (u32)(((i32)instr.loadType.offset << 25) >> 21);
+
+    const u32 addr = (get(base) + offset) & 0xFFF;
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const char *baseName = REG_NAMES[base];
+
+        const u32 pc = getCurrentPC();
+
+        std::printf("[%03X:%08X] lqv v%u[%u], %03X(%s); v%u[%u] = [%03X]\n", pc, instr.raw, vt, element, instr.loadType.offset << 4, baseName, vt, element, addr);
+    }
+
+    u32 i = 0;
+    while ((addr + i) <= ((addr & 0xFF0) + 15)) {
+        const u8 data = read<u8>(addr + i);
+
+        std::printf("v%u[%u] = [%03X] = %02X\n", vt, (element + i) & 15, addr + i, data);
+
+        i += 1;
     }
 }
 
@@ -493,6 +609,9 @@ void doInstruction() {
                     case SpecialOpcode::SLL:
                         doALURegister<ALUOpReg::SLL>(instr);
                         break;
+                    case SpecialOpcode::SRL:
+                        doALURegister<ALUOpReg::SRL>(instr);
+                        break;
                     case SpecialOpcode::JR:
                         doJump<JumpOp::JR>(instr);
                         break;
@@ -505,6 +624,9 @@ void doInstruction() {
                         break;
                     case SpecialOpcode::ADD:
                         doALURegister<ALUOpReg::ADD>(instr);
+                        break;
+                    case SpecialOpcode::SUB:
+                        doALURegister<ALUOpReg::SUB>(instr);
                         break;
                     default:
                         PLOG_FATAL << "Unrecognized function " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
@@ -525,6 +647,9 @@ void doInstruction() {
         case Opcode::BNE:
             doBranch<BranchOp::BNE>(instr);
             break;
+        case Opcode::BGTZ:
+            doBranch<BranchOp::BGTZ>(instr);
+            break;
         case Opcode::ADDI:
             doALUImmediate<ALUOpImm::ADDI>(instr);
             break;
@@ -540,11 +665,42 @@ void doInstruction() {
         case Opcode::COP0:
             doCoprocessor<0>(instr);
             break;
+        case Opcode::LB:
+            doLoadStore<LoadStoreOp::LB>(instr);
+            break;
+        case Opcode::LH:
+            doLoadStore<LoadStoreOp::LH>(instr);
+            break;
         case Opcode::LW:
             doLoadStore<LoadStoreOp::LW>(instr);
             break;
+        case Opcode::LBU:
+            doLoadStore<LoadStoreOp::LBU>(instr);
+            break;
+        case Opcode::LHU:
+            doLoadStore<LoadStoreOp::LHU>(instr);
+            break;
+        case Opcode::SB:
+            doLoadStore<LoadStoreOp::SB>(instr);
+            break;
         case Opcode::SW:
             doLoadStore<LoadStoreOp::SW>(instr);
+            break;
+        case Opcode::LWC2:
+            {
+                const VUInstruction vuInstr{.raw = instr.raw};
+
+                const u32 op = vuInstr.loadType.opcode;
+                switch (op) {
+                    case VULoadOpcode::LQV:
+                        LQV(vuInstr);
+                        break;
+                    default:
+                        PLOG_FATAL << "Unrecognized VU load opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
+
+                        exit(0);
+                }
+            }
             break;
         default:
             PLOG_FATAL << "Unrecognized opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";

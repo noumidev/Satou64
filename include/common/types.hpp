@@ -26,6 +26,11 @@ template<typename T>
 inline T byteswap(const T data) requires std::is_unsigned_v<T>;
 
 template<>
+inline u8 byteswap(const u8 data) {
+    return data;
+}
+
+template<>
 inline u16 byteswap(const u16 data) {
     return (data >> 8) | (data << 8);
 }

@@ -15,6 +15,7 @@ namespace IORegister {
         IOBase = 0x4100000,
         START = IOBase + 0x00,
         END = IOBase + 0x04,
+        CURRENT = IOBase + 0x08,
         STATUS = IOBase + 0x0C,
     };
 }

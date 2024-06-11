@@ -11,6 +11,18 @@
 
 namespace hw::rsp {
 
+union VUInstruction {
+    u32 raw;
+    struct {
+        u32 offset : 7;
+        u32 element : 4;
+        u32 opcode : 5;
+        u32 vt : 5;
+        u32 base : 5;
+        u32 : 6;
+    } loadType;
+};
+
 void init();
 void deinit();
 
@@ -34,6 +46,8 @@ void setBranchPC(const u32 addr);
 void advancePC();
 
 u32 fetch();
+
+void LQV(const VUInstruction instr);
 
 void doInstruction();
 
