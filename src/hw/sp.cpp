@@ -177,13 +177,15 @@ u32 readIO(const u64 ioaddr) {
 
             return regs.status.dmaBusy;
         case IORegister::SEMAPHORE:
-            PLOG_INFO << "SEMAPHORE read";
+            {
+                PLOG_INFO << "SEMAPHORE read";
 
-            const u32 data = (u32)regs.semaphore;
+                const u32 data = (u32)regs.semaphore;
 
-            regs.semaphore = true;
+                regs.semaphore = true;
 
-            return data;
+                return data;
+            }
         case IORegister::PC:
             PLOG_WARNING << "PC read";
 
