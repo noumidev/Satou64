@@ -13,6 +13,9 @@ namespace hw::sp {
 namespace IORegister {
     enum : u64 {
         IOBase = 0x4040000,
+        SPADDR = IOBase + 0x00,
+        RAMADDR = IOBase + 0x04,
+        RDLEN = IOBase + 0x08,
         STATUS = IOBase + 0x10,
         DMABUSY = IOBase + 0x18,
         PC = IOBase + 0x40000,
@@ -23,6 +26,12 @@ void init();
 void deinit();
 
 void reset();
+
+void BREAK();
+
+bool isHalted();
+
+void doDMAToRSP();
 
 u32 readIO(const u64 ioaddr);
 

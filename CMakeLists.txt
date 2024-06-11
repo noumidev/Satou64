@@ -49,6 +49,7 @@ set(SOURCES
     src/hw/pif/pif.cpp
     src/hw/rdp/rasterizer.cpp
     src/hw/rdp/rdp.cpp
+    src/hw/rsp/rsp.cpp
     src/renderer/renderer.cpp
     src/sys/emulator.cpp
     src/sys/memory.cpp
@@ -76,6 +77,7 @@ set(HEADERS
     include/hw/pif/pif.hpp
     include/hw/rdp/rasterizer.hpp
     include/hw/rdp/rdp.hpp
+    include/hw/rsp/rsp.hpp
     include/renderer/renderer.hpp
     include/sys/emulator.hpp
     include/sys/memory.hpp
