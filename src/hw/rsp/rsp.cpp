@@ -46,9 +46,15 @@ constexpr const char *REG_NAMES[Register::NumberOfRegisters] = {
 namespace Opcode {
     enum : u32 {
         SPECIAL = 0x00,
+        J = 0x02,
+        JAL = 0x03,
+        BEQ = 0x04,
+        BNE = 0x05,
         ADDI = 0x08,
+        ANDI = 0x0C,
         ORI = 0x0D,
         LUI = 0x0F,
+        COP0 = 0x10,
         LW = 0x23,
         SW = 0x2B,
     };
@@ -56,19 +62,41 @@ namespace Opcode {
 
 namespace SpecialOpcode {
     enum : u32 {
+        SLL = 0x00,
+        JR = 0x08,
         BREAK = 0x0D,
         ADD = 0x20,
     };
 }
 
+namespace CoprocessorOpcode {
+    enum : u32 {
+        MF = 0x00,
+        MT = 0x04,
+    };
+}
+
 enum class ALUOpImm {
     ADDI,
+    ANDI,
     LUI,
     ORI,
 };
 
 enum class ALUOpReg {
     ADD,
+    SLL,
+};
+
+enum class BranchOp {
+    BEQ,
+    BNE,
+};
+
+enum class JumpOp {
+    J,
+    JAL,
+    JR,
 };
 
 enum class LoadStoreOp {
@@ -130,6 +158,15 @@ u32 getCurrentPC() {
     return regFile.cpc.addr;
 }
 
+void branch(const u32 target, const bool condition, const u32 linkReg) {
+    // Save return address
+    set(linkReg, regFile.npc.addr);
+
+    if (condition) {
+        setBranchPC(target);
+    }
+}
+
 void set(const u32 idx, const u32 data) {
     if (!isValidRegisterIndex(idx)) {
         PLOG_FATAL << "Register index out of bounds";
@@ -148,6 +185,10 @@ void set(const u32 idx, const u32 data) {
 void setPC(const u32 addr) {
     regFile.pc.addr = addr;
     regFile.npc.addr = addr + 4;
+}
+
+void setBranchPC(const u32 addr) {
+    regFile.npc.addr = addr;
 }
 
 void advancePC() {
@@ -195,6 +236,9 @@ void doALUImmediate(const Instruction instr) {
         case ALUOpImm::ADDI:
             set(rt, rsData + (u32)(i16)imm);
             break;
+        case ALUOpImm::ANDI:
+            set(rt, rsData & imm);
+            break;
         case ALUOpImm::LUI:
             set(rt, imm << 16);
             break;
@@ -214,6 +258,9 @@ void doALUImmediate(const Instruction instr) {
         switch (op) {
             case ALUOpImm::ADDI:
                 std::printf("[%03X:%08X] addi %s, %s, %04X; %s = %08X\n", pc, instr.raw, rtName, rsName, imm, rtName, rtData);
+                break;
+            case ALUOpImm::ANDI:
+                std::printf("[%03X:%08X] andi %s, %s, %04X; %s = %08X\n", pc, instr.raw, rtName, rsName, imm, rtName, rtData);
                 break;
             case ALUOpImm::LUI:
                 std::printf("[%03X:%08X] lui %s, %04X; %s = %08X\n", pc, instr.raw, rtName, imm, rtName, rtData);
@@ -240,6 +287,9 @@ void doALURegister(const Instruction instr) {
         case ALUOpReg::ADD:
             set(rd, rsData + rtData);
             break;
+        case ALUOpReg::SLL:
+            set(rd, rtData << sa);
+            break;
     }
 
     if constexpr (ENABLE_DISASSEMBLER) {
@@ -255,7 +305,140 @@ void doALURegister(const Instruction instr) {
             case ALUOpReg::ADD:
                 std::printf("[%03X:%08X] add %s, %s, %s; %s = %08X\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
                 break;
+            case ALUOpReg::SLL:
+                if (rd == Register::R0) {
+                    std::printf("[%03X:%08X] nop\n", pc, instr.raw);
+                } else {
+                    std::printf("[%03X:%08X] sll %s, %s, %u; %s = %08X\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
+                }
+                break;
         }
+    }
+}
+
+template<BranchOp op>
+void doBranch(const Instruction instr) {
+    const u32 rs = instr.iType.rs;
+    const u32 rt = instr.iType.rt;
+
+    const u32 imm = instr.iType.immediate;
+    const u32 offset = (i16)imm;
+
+    const u32 target = (getPC() + (offset << 2)) & 0xFFC;
+
+    const u32 rsData = get(rs);
+    const u32 rtData = get(rt);
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const char *rsName = REG_NAMES[rs];
+        const char *rtName = REG_NAMES[rt];
+
+        const u32 pc = getCurrentPC();
+
+        switch (op) {
+            case BranchOp::BEQ:
+                std::printf("[%03X:%08X] beq %s, %s, %03X; %s = %08X, %s = %08X\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
+                break;
+            case BranchOp::BNE:
+                std::printf("[%03X:%08X] bne %s, %s, %03X; %s = %08X, %s = %08X\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
+                break;
+        }
+    }
+
+    switch (op) {
+        case BranchOp::BEQ:
+            branch(target, rsData == rtData, Register::R0);
+            break;
+        case BranchOp::BNE:
+            branch(target, rsData != rtData, Register::R0);
+            break;
+    }
+}
+
+template<int coprocessor>
+void doCoprocessor(const Instruction instr) {
+    const u32 rd = instr.rType.rd;
+    const u32 rt = instr.rType.rt;
+
+    const u32 rtData = get(rt);
+
+    const u32 op = instr.rType.rs;
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const char *rtName = REG_NAMES[rt];
+
+        const u32 pc = getCurrentPC();
+
+        switch (op) {
+            case CoprocessorOpcode::MF:
+                std::printf("[%03X:%08X] mfc%d %s, %u\n", pc, instr.raw, coprocessor, rtName, rd);
+                break;
+            case CoprocessorOpcode::MT:
+                std::printf("[%03X:%08X] mtc%d %s, %u; %u = %08X\n", pc, instr.raw, coprocessor, rtName, rd, rd, rtData);
+                break;
+            default:
+                PLOG_FATAL << "Unrecognized coprocessor opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
+
+                exit(0);
+        }
+    }
+
+    switch (op) {
+        case CoprocessorOpcode::MF:
+            switch (coprocessor) {
+                case 0:
+                    return set(rt, sp::readIO(sp::IORegister::IOBase + 4 * rd));
+            }
+            break;
+        case CoprocessorOpcode::MT:
+            switch (coprocessor) {
+                case 0:
+                    return sp::writeIO(sp::IORegister::IOBase + 4 * rd, rtData);
+            }
+            break;
+        default:
+            PLOG_FATAL << "Unrecognized coprocessor opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
+
+            exit(0);
+    }
+}
+
+template<JumpOp op>
+void doJump(const Instruction instr) {
+    const u32 rd = instr.rType.rd;
+    const u32 rs = instr.rType.rs;
+
+    u32 target = (instr.jType.target << 2) & 0xFFC;
+    if constexpr (op == JumpOp::JR) {
+        target = get(rs) & 0xFFC;
+    }
+
+    if (ENABLE_DISASSEMBLER) {
+        const char *rdName = REG_NAMES[rd];
+        const char *rsName = REG_NAMES[rs];
+
+        const u32 pc = getCurrentPC();
+
+        switch (op) {
+            case JumpOp::J:
+                std::printf("[%03X:%08X] j %03X\n", pc, instr.raw, target);
+                break;
+            case JumpOp::JAL:
+                std::printf("[%03X:%08X] jal %08X; ra = %08X\n", pc, instr.raw, target, getPC());
+                break;
+            case JumpOp::JR:
+                std::printf("[%03X:%08X] jr %s; PC = %03X\n", pc, instr.raw, rsName, target);
+                break;
+        }
+    }
+
+    switch (op) {
+        case JumpOp::J:
+        case JumpOp::JR:
+            branch(target, true, Register::R0);
+            break;
+        case JumpOp::JAL:
+            branch(target, true, Register::RA);
+            break;
     }
 }
 
@@ -307,6 +490,12 @@ void doInstruction() {
             {
                 const u32 funct = instr.rType.funct;
                 switch (funct) {
+                    case SpecialOpcode::SLL:
+                        doALURegister<ALUOpReg::SLL>(instr);
+                        break;
+                    case SpecialOpcode::JR:
+                        doJump<JumpOp::JR>(instr);
+                        break;
                     case SpecialOpcode::BREAK:
                         if constexpr (ENABLE_DISASSEMBLER) {
                             std::printf("[%03X:%08X] break\n", getCurrentPC(), instr.raw);
@@ -324,14 +513,32 @@ void doInstruction() {
                 }
             }   
             break;
+        case Opcode::J:
+            doJump<JumpOp::J>(instr);
+            break;
+        case Opcode::JAL:
+            doJump<JumpOp::JAL>(instr);
+            break;
+        case Opcode::BEQ:
+            doBranch<BranchOp::BEQ>(instr);
+            break;
+        case Opcode::BNE:
+            doBranch<BranchOp::BNE>(instr);
+            break;
         case Opcode::ADDI:
             doALUImmediate<ALUOpImm::ADDI>(instr);
+            break;
+        case Opcode::ANDI:
+            doALUImmediate<ALUOpImm::ANDI>(instr);
             break;
         case Opcode::ORI:
             doALUImmediate<ALUOpImm::ORI>(instr);
             break;
         case Opcode::LUI:
             doALUImmediate<ALUOpImm::LUI>(instr);
+            break;
+        case Opcode::COP0:
+            doCoprocessor<0>(instr);
             break;
         case Opcode::LW:
             doLoadStore<LoadStoreOp::LW>(instr);

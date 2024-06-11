@@ -17,7 +17,9 @@ namespace IORegister {
         RAMADDR = IOBase + 0x04,
         RDLEN = IOBase + 0x08,
         STATUS = IOBase + 0x10,
+        DMAFULL = IOBase + 0x14,
         DMABUSY = IOBase + 0x18,
+        SEMAPHORE = IOBase + 0x1C,
         PC = IOBase + 0x40000,
     };
 }

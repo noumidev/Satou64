@@ -78,6 +78,8 @@ struct Registers {
     RAMADDR ramaddr;
     LEN rdlen;
     STATUS status;
+
+    bool semaphore;
 };
 
 Registers regs;
@@ -166,10 +168,22 @@ u32 readIO(const u64 ioaddr) {
             PLOG_INFO << "STATUS read";
 
             return regs.status.raw;
+        case IORegister::DMAFULL:
+            PLOG_INFO << "DMAFULL read";
+
+            return regs.status.dmaFull;
         case IORegister::DMABUSY:
             PLOG_INFO << "DMABUSY read";
 
             return regs.status.dmaBusy;
+        case IORegister::SEMAPHORE:
+            PLOG_INFO << "SEMAPHORE read";
+
+            const u32 data = (u32)regs.semaphore;
+
+            regs.semaphore = true;
+
+            return data;
         case IORegister::PC:
             PLOG_WARNING << "PC read";
 
@@ -238,9 +252,8 @@ void writeIO(const u64 ioaddr, const u32 data) {
                     mi::clearInterrupt(mi::InterruptSource::SP);
                     break;
                 case 2:
-                    PLOG_FATAL << "Unimplemented RSP interrupt";
-
-                    exit(0);
+                    mi::requestInterrupt(mi::InterruptSource::SP);
+                    break;
             }
 
             switch ((data >> 5) & 3) {
@@ -296,6 +309,11 @@ void writeIO(const u64 ioaddr, const u32 data) {
                         break;
                 }
             }
+            break;
+        case IORegister::SEMAPHORE:
+            PLOG_INFO << "SEMAPHORE write (data = " << std::hex << data << ")";
+
+            regs.semaphore = (data & 1) != 0;
             break;
         case IORegister::PC:
             PLOG_INFO << "PC write (data = " << std::hex << data << ")";

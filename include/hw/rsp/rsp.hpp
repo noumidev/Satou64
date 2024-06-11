@@ -24,9 +24,12 @@ u32 get(const u32 idx);
 u32 getPC();
 u32 getCurrentPC();
 
+void branch(const u32 target, const bool condition, const u32 linkReg);
+
 void set(const u32 idx, const u32 data);
 
 void setPC(const u32 addr);
+void setBranchPC(const u32 addr);
 
 void advancePC();
 
