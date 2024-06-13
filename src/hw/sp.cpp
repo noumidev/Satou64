@@ -77,6 +77,7 @@ struct Registers {
     SPADDR spaddr;
     RAMADDR ramaddr;
     LEN rdlen;
+    LEN wrlen;
     STATUS status;
 
     bool semaphore;
@@ -107,6 +108,47 @@ void BREAK() {
 
 bool isHalted() {
     return regs.status.halted != 0;
+}
+
+void doDMAToRAM() {
+    const u64 dramaddr = regs.ramaddr.addr << 3;
+    u64 rspAddr = regs.spaddr.addr;
+
+    const u64 length = regs.wrlen.rdlen + 1;
+    const u64 count = regs.wrlen.count + 1;
+    const u64 skip = regs.wrlen.skip;
+
+    // Casting this to u64 * is fine because the address is guaranteed
+    // to be 64-bit aligned
+    u64 *dram = (u64 *)sys::memory::getPointer(dramaddr);
+
+    u64 *spmem;
+    if (regs.spaddr.isIMEM) {
+        PLOG_VERBOSE << "DMA from RSP IMEM (RSP address = " << std::hex << rspAddr << ", DRAM address = " << dramaddr << ", length = " << std::dec << length << ", count = " << count << ", skip = " << skip << ")";
+
+        spmem = (u64 *)sys::memory::getPointer(sys::memory::MemoryBase::RSP_IMEM);
+    } else {
+        PLOG_VERBOSE << "DMA from RSP DMEM (RSP address = " << std::hex << rspAddr << ", DRAM address = " << dramaddr << ", length = " << std::dec << length << ", count = " << count << ", skip = " << skip << ")";
+
+        spmem = (u64 *)sys::memory::getPointer(sys::memory::MemoryBase::RSP_DMEM);
+    }
+
+    for (u64 c = 0; c < count; c++) {
+        for (u64 i = 0; i < length; i++) {
+            *dram++ = spmem[rspAddr++];
+
+            rspAddr &= 0x1FF;
+        }
+
+        dram += skip;
+    }
+
+    // Write final register values
+    regs.ramaddr.addr = (dramaddr >> 3) + (count - 1) * (length + skip) + length;
+    regs.spaddr.addr = rspAddr;
+
+    regs.wrlen.rdlen = 0xFF8 >> 3;
+    regs.wrlen.count = 0;
 }
 
 void doDMAToRSP() {
@@ -164,6 +206,10 @@ u32 readIO(const u64 ioaddr) {
             PLOG_INFO << "RDLEN read";
 
             return regs.rdlen.raw;
+        case IORegister::WRLEN:
+            PLOG_INFO << "WRLEN read";
+
+            return regs.wrlen.raw;
         case IORegister::STATUS:
             PLOG_INFO << "STATUS read";
 
@@ -215,6 +261,13 @@ void writeIO(const u64 ioaddr, const u32 data) {
             regs.rdlen.raw = data & RegisterMask::RDLEN;
 
             doDMAToRSP();
+            break;
+        case IORegister::WRLEN:
+            PLOG_INFO << "WRLEN write (data = " << std::hex << data << ")";
+
+            regs.wrlen.raw = data & RegisterMask::RDLEN;
+
+            doDMAToRAM();
             break;
         case IORegister::STATUS:
             PLOG_INFO << "STATUS write (data = " << std::hex << data << ")";

@@ -16,6 +16,7 @@ namespace IORegister {
         SPADDR = IOBase + 0x00,
         RAMADDR = IOBase + 0x04,
         RDLEN = IOBase + 0x08,
+        WRLEN = IOBase + 0x0C,
         STATUS = IOBase + 0x10,
         DMAFULL = IOBase + 0x14,
         DMABUSY = IOBase + 0x18,
@@ -33,6 +34,7 @@ void BREAK();
 
 bool isHalted();
 
+void doDMAToRAM();
 void doDMAToRSP();
 
 u32 readIO(const u64 ioaddr);
