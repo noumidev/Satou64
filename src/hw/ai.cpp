@@ -73,6 +73,10 @@ void reset() {
 
 u32 readIO(const u64 ioaddr) {
     switch (ioaddr) {
+        case IORegister::LENGTH:
+            PLOG_WARNING << "LENGTH read";
+
+            return regs.length.raw;
         case IORegister::STATUS:
             PLOG_WARNING << "STATUS read";
 
