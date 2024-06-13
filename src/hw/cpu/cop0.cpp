@@ -34,6 +34,8 @@ namespace Register {
         Cause = 13,
         EPC = 14,
         Config = 16,
+        WatchLo = 18,
+        WatchHi = 19,
         TagLo = 28,
         TagHi = 29,
     };
@@ -56,7 +58,9 @@ namespace CPUMode {
 
 namespace Opcode {
     enum : u32 {
+        TLBR = 0x01,
         TLBWI = 0x02,
+        TLBP = 0x08,
         ERET = 0x18,
     };
 }
@@ -165,6 +169,22 @@ u32 get(const u32 idx) {
     }
 
     switch (idx) {
+        case Register::Index:
+            PLOG_WARNING << "Index read";
+
+            return 0;
+        case Register::EntryLo0:
+            PLOG_WARNING << "EntryLo0 read";
+
+            return 0;
+        case Register::EntryLo1:
+            PLOG_WARNING << "EntryLo1 read";
+
+            return 0;
+        case Register::PageMask:
+            PLOG_WARNING << "PageMask read";
+
+            return 0;
         case Register::Count:
             return regs.count;
         case Register::EntryHi:
@@ -247,6 +267,12 @@ void set(const u32 idx, const u32 data) {
             break;
         case Register::Config:
             regs.config.raw = (data & WriteMask::Config) | (regs.config.raw & ~WriteMask::Config);
+            break;
+        case Register::WatchLo:
+            PLOG_WARNING << "WatchLo write (data = " << std::hex << data << ")";
+            break;
+        case Register::WatchHi:
+            PLOG_WARNING << "WatchHi write (data = " << std::hex << data << ")";
             break;
         case Register::TagLo:
             PLOG_WARNING << "TagLo write (data = " << std::hex << data << ")";
@@ -340,7 +366,9 @@ void doInstruction(const Instruction instr) {
     if constexpr (ENABLE_DISASSEMBLER) {
         const u32 pc = getCurrentPC();
         switch (funct) {
+            case Opcode::TLBR:
             case Opcode::TLBWI:
+            case Opcode::TLBP:
                 break;
             case Opcode::ERET:
                 std::printf("[%08X:%08X] eret\n", pc, instr.raw);
@@ -353,8 +381,14 @@ void doInstruction(const Instruction instr) {
     }
 
     switch (funct) {
+        case Opcode::TLBR:
+            PLOG_WARNING << "TLBR instruction";
+            break;
         case Opcode::TLBWI:
             PLOG_WARNING << "TLBWI instruction";
+            break;
+        case Opcode::TLBP:
+            PLOG_WARNING << "TLBP instruction";
             break;
         case Opcode::ERET:
             ERET();
