@@ -385,6 +385,9 @@ void CVTD(const Instruction instr) {
 
     u64 data;
     switch (format) {
+        case Format::Single:
+            data = makeLong((f64)makeSingle(get<u32>(fs)));
+            break;
         case Format::Word:
             data = makeLong((f64)get<u32>(fs));
             break;
@@ -671,6 +674,8 @@ void doSingle(const Instruction instr) {
             return MOV<Format::Single>(instr);
         case Opcode::TRUNCW:
             return TRUNCW<Format::Single>(instr);
+        case Opcode::CVTD:
+            return CVTD<Format::Single>(instr);
         case Opcode::CVTW:
             return CVTW<Format::Single>(instr);
         default:
