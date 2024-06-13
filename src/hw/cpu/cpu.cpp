@@ -158,6 +158,7 @@ namespace SpecialOpcode {
         DDIVU = 0x1F,
         ADD = 0x20,
         ADDU = 0x21,
+        SUB = 0x22,
         SUBU = 0x23,
         AND = 0x24,
         OR = 0x25,
@@ -233,6 +234,7 @@ enum class ALUOpReg {
     SRAV,
     SRL,
     SRLV,
+    SUB,
     SUBU,
     XOR,
 };
@@ -794,6 +796,10 @@ void doALURegister(const Instruction instr) {
         case ALUOpReg::SRLV:
             set(rd, (u32)rtData >> (rsData & 0x1F));
             break;
+        case ALUOpReg::SUB:
+            // TODO: overflow check
+            set(rd, (u32)(rsData - rtData));
+            break;
         case ALUOpReg::SUBU:
             set(rd, (u32)(rsData - rtData));
             break;
@@ -896,6 +902,9 @@ void doALURegister(const Instruction instr) {
                 break;
             case ALUOpReg::SRLV:
                 std::printf("[%08X:%08X] srlv %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
+                break;
+            case ALUOpReg::SUB:
+                std::printf("[%08X:%08X] sub %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
                 break;
             case ALUOpReg::SUBU:
                 std::printf("[%08X:%08X] subu %s, %s, %s; %s = %016llX\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
@@ -1565,6 +1574,9 @@ void doInstruction() {
                         break;
                     case SpecialOpcode::ADDU:
                         doALURegister<ALUOpReg::ADDU>(instr);
+                        break;
+                    case SpecialOpcode::SUB:
+                        doALURegister<ALUOpReg::SUB>(instr);
                         break;
                     case SpecialOpcode::SUBU:
                         doALURegister<ALUOpReg::SUBU>(instr);
