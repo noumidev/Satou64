@@ -28,13 +28,28 @@ namespace Command {
         SetScissor = 0x2D,
         SetOtherModes = 0x2F,
         LoadTLUT = 0x30,
+        SetTileSize = 0x32,
         LoadTile = 0x34,
         SetTile = 0x35,
+        FillRectangle = 0x36,
+        SetFillColor = 0x37,
         SetCombineMode = 0x3C,
         SetTextureImage = 0x3D,
         SetColorImage = 0x3F,
     };
 }
+
+union FillRectangleHeader {
+    u64 raw;
+    struct {
+        u64 y0 : 12;
+        u64 x0 : 12;
+        u64 : 8;
+        u64 y1 : 12;
+        u64 x1 : 12;
+        u64 : 8;
+    };
+};
 
 union LoadTLUTHeader {
     u64 raw;
@@ -122,11 +137,20 @@ u64 processCommandList(const u64 startAddr, const u64 endAddr) {
             case Command::LoadTLUT:
                 cmdLoadTLUT(data);
                 break;
+            case Command::SetTileSize:
+                cmdSetTileSize(data);
+                break;
             case Command::LoadTile:
                 cmdLoadTile(data);
                 break;
             case Command::SetTile:
                 cmdSetTile(data);
+                break;
+            case Command::FillRectangle:
+                cmdFillRectangle(data);
+                break;
+            case Command::SetFillColor:
+                cmdSetFillColor(data);
                 break;
             case Command::SetCombineMode:
                 cmdSetCombineMode(data);
@@ -145,6 +169,14 @@ u64 processCommandList(const u64 startAddr, const u64 endAddr) {
     }
 
     return addr;
+}
+
+void cmdFillRectangle(const u64 data) {
+    PLOG_VERBOSE << "Fill Rectangle (command word = " << std::hex << data << ")";
+
+    FillRectangleHeader header{.raw = data};
+
+    rasterizer::fillRectangle(header.x0, header.y0, header.x1, header.y1);
 }
 
 void cmdLoadTile(const u64 data) {
@@ -174,6 +206,14 @@ void cmdSetColorImage(const u64 data) {
 
 void cmdSetCombineMode(const u64 data) {
     PLOG_VERBOSE << "Set Combine Mode (command word = " << std::hex << data << ")";
+
+    rasterizer::SetCombineModeHeader header{.raw = data};
+
+    rasterizer::setCombineMode(header);
+}
+
+void cmdSetFillColor(const u64 data) {
+    PLOG_VERBOSE << "Set Fill Color (command word = " << std::hex << data << ")";
 }
 
 void cmdSetOtherModes(const u64 data) {
@@ -202,6 +242,10 @@ void cmdSetTile(const u64 data) {
     rasterizer::SetTileHeader header{.raw = data};
 
     rasterizer::setTile(header);
+}
+
+void cmdSetTileSize(const u64 data) {
+    PLOG_VERBOSE << "Set Tile Size (command word = " << std::hex << data << ")";
 }
 
 void cmdSyncFull(const u64 data) {

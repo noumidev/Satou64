@@ -16,14 +16,17 @@ void reset();
 
 u64 processCommandList(const u64 startAddr, const u64 endAddr);
 
+void cmdFillRectangle(const u64 data);
 void cmdLoadTile(const u64 data);
 void cmdLoadTLUT(const u64 data);
 void cmdSetColorImage(const u64 data);
 void cmdSetCombineMode(const u64 data);
+void cmdSetFillColor(const u64 data);
 void cmdSetOtherModes(const u64 data);
 void cmdSetScissor(const u64 data);
 void cmdSetTextureImage(const u64 data);
 void cmdSetTile(const u64 data);
+void cmdSetTileSize(const u64 data);
 void cmdSyncFull(const u64 data);
 void cmdSyncLoad(const u64 data);
 void cmdSyncPipe(const u64 data);
