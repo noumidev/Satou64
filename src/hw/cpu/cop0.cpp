@@ -114,7 +114,7 @@ union Status {
         u32 softReset : 1;
         u32 tlbShutdown : 1;
         u32 bootExceptionVectors : 1;
-        u32 : 0;
+        u32 : 1;
         u32 instructionTraceEnable : 1;
         u32 reverseEndian : 1;
         u32 fr : 1;
@@ -153,7 +153,7 @@ bool isCoprocessorUsable(const u32 coprocessor) {
         return true;
     }
 
-    return (regs.status.ce & (1 << coprocessor)) != 0;
+    return (regs.status.coprocessorUsable & (1 << coprocessor)) != 0;
 }
 
 bool isLargeFPURegisterFile() {
@@ -335,6 +335,12 @@ void setBranchDelay() {
     regs.cause.branchDelay = 1;
 }
 
+void setCoprocessorError(const u32 coprocessor) {
+    PLOG_DEBUG << "Coprocessor " << coprocessor << " is unusable";
+
+    regs.cause.coprocessorError = coprocessor;
+}
+
 void setExceptionCode(const u32 exceptionCode) {
     regs.cause.exceptionCode = exceptionCode;
 }
@@ -344,6 +350,8 @@ void setExceptionLevel() {
 }
 
 void setExceptionPC(const u64 epc) {
+    PLOG_DEBUG << "Exception PC is " << std::hex << epc;
+
     regs.epc = epc;
 }
 

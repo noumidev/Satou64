@@ -47,6 +47,7 @@ bool getBootExceptionVectors();
 bool getExceptionLevel();
 
 void setBranchDelay();
+void setCoprocessorError(const u32 coprocessor);
 void setExceptionCode(const u32 exceptionCode);
 void setExceptionLevel();
 void setExceptionPC(const u64 epc);

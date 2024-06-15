@@ -333,16 +333,21 @@ void raiseException(const u32 exceptionCode) {
         exit(0);
     }
 
+    u64 pc;
     if (exceptionCode == ExceptionCode::Interrupt) {
         advanceDelaySlot();
+
+        pc = regFile.pc;
+    } else {
+        pc = regFile.cpc;
     }
 
     if (!cop0::getExceptionLevel()) {
         if (inDelaySlot[0]) {
-            cop0::setExceptionPC(regFile.pc - 4);
+            cop0::setExceptionPC(pc - 4);
             cop0::setBranchDelay();
         } else {
-            cop0::setExceptionPC(regFile.pc);
+            cop0::setExceptionPC(pc);
             cop0::clearBranchDelay();
         }
     }
@@ -1041,10 +1046,6 @@ void doCoprocessor(const Instruction instr) {
         exit(0);
     }
 
-    if (!cop0::isCoprocessorUsable(coprocessor)) {
-        PLOG_WARNING << "Unimplemented Coprocessor Unusable exception";
-    }
-
     const u32 rd = instr.rType.rd;
     const u32 rt = instr.rType.rt;
 
@@ -1077,6 +1078,12 @@ void doCoprocessor(const Instruction instr) {
 
             exit(0);
         }
+    }
+
+    if (!cop0::isCoprocessorUsable(coprocessor)) {
+        cop0::setCoprocessorError(coprocessor);
+
+        return raiseException(ExceptionCode::CoprocessorUnusable);
     }
 
     switch (op) {
@@ -1332,7 +1339,9 @@ void doLoadStore(const Instruction instr) {
             break;
         case LoadStoreOp::LDC1:
             if (!cop0::isCoprocessorUsable(Coprocessor::FPU)) {
-                PLOG_WARNING << "Unimplemented Coprocessor Unusable exception";
+                cop0::setCoprocessorError(Coprocessor::FPU);
+
+                return raiseException(ExceptionCode::CoprocessorUnusable);
             }
 
             if (!isAlignedAddress<u64>(vaddr)) {
@@ -1388,7 +1397,9 @@ void doLoadStore(const Instruction instr) {
             break;
         case LoadStoreOp::LWC1:
             if (!cop0::isCoprocessorUsable(Coprocessor::FPU)) {
-                PLOG_WARNING << "Unimplemented Coprocessor Unusable exception";
+                cop0::setCoprocessorError(Coprocessor::FPU);
+
+                return raiseException(ExceptionCode::CoprocessorUnusable);
             }
 
             if (!isAlignedAddress<u32>(vaddr)) {
@@ -1438,7 +1449,9 @@ void doLoadStore(const Instruction instr) {
             break;
         case LoadStoreOp::SDC1:
             if (!cop0::isCoprocessorUsable(Coprocessor::FPU)) {
-                PLOG_WARNING << "Unimplemented Coprocessor Unusable exception";
+                cop0::setCoprocessorError(Coprocessor::FPU);
+
+                return raiseException(ExceptionCode::CoprocessorUnusable);
             }
 
             if (!isAlignedAddress<u64>(vaddr)) {
@@ -1469,7 +1482,9 @@ void doLoadStore(const Instruction instr) {
             break;
         case LoadStoreOp::SWC1:
             if (!cop0::isCoprocessorUsable(Coprocessor::FPU)) {
-                PLOG_WARNING << "Unimplemented Coprocessor Unusable exception";
+                cop0::setCoprocessorError(Coprocessor::FPU);
+
+                return raiseException(ExceptionCode::CoprocessorUnusable);
             }
 
             if (!isAlignedAddress<u32>(vaddr)) {

@@ -14,6 +14,7 @@ namespace hw::cpu {
 namespace ExceptionCode {
     enum : u32 {
         Interrupt = 0x00,
+        CoprocessorUnusable = 0x0B,
     };
 }
 
