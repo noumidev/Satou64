@@ -21,7 +21,11 @@ namespace hw::rsp {
 
 using cpu::Instruction;
 
-constexpr bool ENABLE_DISASSEMBLER = true;
+constexpr bool ENABLE_DISASSEMBLER = false;
+
+constexpr u64 NUM_LANES = 8;
+
+constexpr u64 ACCUMULATOR_SHIFT = 16;
 
 // RSP general-purpose registers
 namespace Register {
@@ -32,6 +36,13 @@ namespace Register {
         T8, T9, K0, K1, GP, SP, S8, RA,
         LO, HI,
         NumberOfRegisters,
+    };
+}
+
+namespace Coprocessor {
+    enum {
+        IO = 0,
+        VectorUnit = 2,
     };
 }
 
@@ -47,24 +58,29 @@ constexpr const char *REG_NAMES[Register::NumberOfRegisters] = {
 namespace Opcode {
     enum : u32 {
         SPECIAL = 0x00,
+        REGIMM = 0x01,
         J = 0x02,
         JAL = 0x03,
         BEQ = 0x04,
         BNE = 0x05,
+        BLEZ = 0x06,
         BGTZ = 0x07,
         ADDI = 0x08,
         ANDI = 0x0C,
         ORI = 0x0D,
         LUI = 0x0F,
         COP0 = 0x10,
+        COP2 = 0x12,
         LB = 0x20,
         LH = 0x21,
         LW = 0x23,
         LBU = 0x24,
         LHU = 0x25,
         SB = 0x28,
+        SH = 0x29,
         SW = 0x2B,
         LWC2 = 0x32,
+        SWC2 = 0x3A,
     };
 }
 
@@ -72,10 +88,22 @@ namespace SpecialOpcode {
     enum : u32 {
         SLL = 0x00,
         SRL = 0x02,
+        SRA = 0x03,
+        SLLV = 0x04,
         JR = 0x08,
         BREAK = 0x0D,
         ADD = 0x20,
         SUB = 0x22,
+        AND = 0x24,
+        OR = 0x25,
+        NOR = 0x27,
+    };
+}
+
+namespace RegimmOpcode {
+    enum : u32 {
+        BLTZ = 0x00,
+        BGEZ = 0x01,
     };
 }
 
@@ -83,12 +111,30 @@ namespace CoprocessorOpcode {
     enum : u32 {
         MF = 0x00,
         MT = 0x04,
+        COMPUTE = 0x10,
+    };
+}
+
+namespace VUComputeOpcode {
+    enum : u32 {
+        VMULF = 0x00,
+        VMACF = 0x08,
+        VXOR = 0x2C,
     };
 }
 
 namespace VULoadOpcode {
     enum : u32 {
+        LDV = 0x03,
         LQV = 0x04,
+    };
+}
+
+namespace VUStoreOpcode {
+    enum : u32 {
+        SSV = 0x01,
+        SDV = 0x03,
+        SQV = 0x04,
     };
 }
 
@@ -101,14 +147,22 @@ enum class ALUOpImm {
 
 enum class ALUOpReg {
     ADD,
+    AND,
+    NOR,
+    OR,
     SLL,
+    SLLV,
+    SRA,
     SRL,
     SUB,
 };
 
 enum class BranchOp {
     BEQ,
+    BGEZ,
     BGTZ,
+    BLEZ,
+    BLTZ,
     BNE,
 };
 
@@ -125,11 +179,85 @@ enum class LoadStoreOp {
     LHU,
     LW,
     SB,
+    SH,
     SW,
+};
+
+u16 clampSigned(const i64 data) {
+    if (data < -0x8000) {
+        return 0x8000; ;
+    }
+
+    if (data > 0x7FFF) {
+        return 0x7FFF;
+    }
+
+    return (u16)data;
+}
+
+u32 getAccumulatorIndex(const u32 idx) {
+    return 2 - idx;
+}
+
+u32 getLaneIndex(const u32 idx) {
+    return 7 - idx;
+}
+
+struct Accumulator {
+    u64 lanes[NUM_LANES];
+
+    u64 getLane(const u32 idx) {
+        return lanes[getLaneIndex(idx)];
+    }
+
+    i64 getSignedLane(const u32 idx) {
+        return ((i64)lanes[getLaneIndex(idx)] << ACCUMULATOR_SHIFT) >> ACCUMULATOR_SHIFT;
+    }
+
+    u16 getShort(const u32 idx, const u32 element) {
+        return (u16)(lanes[getLaneIndex(idx)] >> (16 * getAccumulatorIndex(element)));
+    }
+
+    void setLane(const u32 idx, const u64 data) {
+        lanes[getLaneIndex(idx)] = data & 0xFFFFFFFFFFFF;
+    }
+
+    void setSignedLane(const u32 idx, const i64 data) {
+        lanes[getLaneIndex(idx)] = data;
+    }
+
+    void setShort(const u32 idx, const u32 element, const u16 data) {
+        const u64 shift = 16 * getAccumulatorIndex(element);
+        const u64 mask = 0xFFFF << shift;
+
+        const u64 laneIndex = getLaneIndex(idx);
+
+        lanes[laneIndex] = (lanes[laneIndex] & ~mask) | ((u64)data << shift);
+    }
+};
+
+struct VectorRegister {
+    u16 lanes[NUM_LANES];
+
+    u16 getLane(const u32 idx) {
+        return lanes[getLaneIndex(idx)];
+    }
+
+    i16 getSignedLane(const u32 idx) {
+        return (i16)lanes[getLaneIndex(idx)];
+    }
+
+    void setLane(const u32 idx, const u16 data) {
+        lanes[getLaneIndex(idx)] = data;
+    }
 };
 
 struct Registers {
     u32 regs[Register::NumberOfRegisters];
+
+    Accumulator acc;
+
+    VectorRegister vuRegs[32];
 
     union {
         u32 raw;
@@ -138,6 +266,47 @@ struct Registers {
             u32 : 20;
         };
     } pc, npc, cpc;
+
+    u8 getByte(const u32 idx, const u32 element) {
+        return vuRegs[idx].lanes[element >> 1] >> (8 * ((element ^ 1) & 1));
+    }
+
+    u16 getLane(const u32 idx, const u32 element) {
+        return vuRegs[idx].getLane(element);
+    }
+
+    void setByte(const u32 idx, const u32 element, const u8 data) {
+        const u16 laneData = vuRegs[idx].lanes[element >> 1];
+
+        const u32 shift = 8 * ((element ^ 1) & 1);
+        const u16 mask = 0xFF << shift;
+
+        vuRegs[idx].lanes[element >> 1] = (laneData & ~mask) | ((u16)data << shift);
+    }
+
+    void setLane(const u32 idx, const u32 element, const u16 data) {
+        vuRegs[idx].setLane(element, data);
+    }
+
+    VectorRegister broadcast(const u32 idx, const u32 broadcastMod) {
+        constexpr u64 BROADCAST_MASKS[16] = {
+            0x76543210, 0x76543210, 0x66442200, 0x77553311,
+            0x44440000, 0x55551111, 0x66662222, 0x77773333,
+            0x00000000, 0x11111111, 0x22222222, 0x33333333,
+            0x44444444, 0x55555555, 0x66666666, 0x77777777,
+        };
+
+        const VectorRegister &reg = vuRegs[idx];
+
+        const u64 mask = BROADCAST_MASKS[broadcastMod];
+
+        VectorRegister broadcastReg;
+        for (u64 i = 0; i < 8; i++) {
+            broadcastReg.lanes[i] = reg.lanes[(mask >> (4 * i)) & 7];
+        }
+
+        return broadcastReg;
+    }
 };
 
 u8 *dmem;
@@ -311,8 +480,23 @@ void doALURegister(const Instruction instr) {
         case ALUOpReg::ADD:
             set(rd, rsData + rtData);
             break;
+        case ALUOpReg::AND:
+            set(rd, rsData & rtData);
+            break;
+        case ALUOpReg::NOR:
+            set(rd, ~(rsData | rtData));
+            break;
+        case ALUOpReg::OR:
+            set(rd, rsData | rtData);
+            break;
         case ALUOpReg::SLL:
             set(rd, rtData << sa);
+            break;
+        case ALUOpReg::SLLV:
+            set(rd, rtData << (rsData & 0x1F));
+            break;
+        case ALUOpReg::SRA:
+            set(rd, (i32)rtData >> sa);
             break;
         case ALUOpReg::SRL:
             set(rd, rtData >> sa);
@@ -335,12 +519,27 @@ void doALURegister(const Instruction instr) {
             case ALUOpReg::ADD:
                 std::printf("[%03X:%08X] add %s, %s, %s; %s = %08X\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
                 break;
+            case ALUOpReg::AND:
+                std::printf("[%03X:%08X] and %s, %s, %s; %s = %08X\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
+                break;
+            case ALUOpReg::NOR:
+                std::printf("[%03X:%08X] nor %s, %s, %s; %s = %08X\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
+                break;
+            case ALUOpReg::OR:
+                std::printf("[%03X:%08X] or %s, %s, %s; %s = %08X\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
+                break;
             case ALUOpReg::SLL:
                 if (rd == Register::R0) {
                     std::printf("[%03X:%08X] nop\n", pc, instr.raw);
                 } else {
                     std::printf("[%03X:%08X] sll %s, %s, %u; %s = %08X\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
                 }
+                break;
+            case ALUOpReg::SLLV:
+                std::printf("[%03X:%08X] sllv %s, %s, %s; %s = %08X\n", pc, instr.raw, rdName, rsName, rtName, rdName, rdData);
+                break;
+            case ALUOpReg::SRA:
+                std::printf("[%03X:%08X] sra %s, %s, %u; %s = %08X\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
                 break;
             case ALUOpReg::SRL:
                 std::printf("[%03X:%08X] srl %s, %s, %u; %s = %08X\n", pc, instr.raw, rdName, rtName, sa, rdName, rdData);
@@ -375,8 +574,17 @@ void doBranch(const Instruction instr) {
             case BranchOp::BEQ:
                 std::printf("[%03X:%08X] beq %s, %s, %03X; %s = %08X, %s = %08X\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
                 break;
+            case BranchOp::BGEZ:
+                std::printf("[%03X:%08X] bgez %s, %03X; %s = %08X\n", pc, instr.raw, rsName, target, rsName, rsData);
+                break;
             case BranchOp::BGTZ:
                 std::printf("[%03X:%08X] bgtz %s, %03X; %s = %08X\n", pc, instr.raw, rsName, target, rsName, rsData);
+                break;
+            case BranchOp::BLEZ:
+                std::printf("[%03X:%08X] blez %s, %03X; %s = %08X\n", pc, instr.raw, rsName, target, rsName, rsData);
+                break;
+            case BranchOp::BLTZ:
+                std::printf("[%03X:%08X] bltz %s, %03X; %s = %08X\n", pc, instr.raw, rsName, target, rsName, rsData);
                 break;
             case BranchOp::BNE:
                 std::printf("[%03X:%08X] bne %s, %s, %03X; %s = %08X, %s = %08X\n", pc, instr.raw, rsName, rtName, target, rsName, rsData, rtName, rtData);
@@ -388,8 +596,17 @@ void doBranch(const Instruction instr) {
         case BranchOp::BEQ:
             branch(target, rsData == rtData, Register::R0);
             break;
+        case BranchOp::BGEZ:
+            branch(target, (i32)rsData >= 0, Register::R0);
+            break;
         case BranchOp::BGTZ:
             branch(target, (i32)rsData > 0, Register::R0);
+            break;
+        case BranchOp::BLEZ:
+            branch(target, (i32)rsData <= 0, Register::R0);
+            break;
+        case BranchOp::BLTZ:
+            branch(target, (i32)rsData < 0, Register::R0);
             break;
         case BranchOp::BNE:
             branch(target, rsData != rtData, Register::R0);
@@ -427,7 +644,7 @@ void doCoprocessor(const Instruction instr) {
     switch (op) {
         case CoprocessorOpcode::MF:
             switch (coprocessor) {
-                case 0:
+                case Coprocessor::IO:
                     if (rd < 8) {
                         return set(rt, sp::readIO(sp::IORegister::IOBase + 4 * rd));
                     } else if (rd < 16) {
@@ -437,11 +654,16 @@ void doCoprocessor(const Instruction instr) {
 
                         exit(0);
                     }
+                    break;
+                default:
+                    PLOG_FATAL << "Invalid coprocessor for MFC";
+
+                    exit(0);
             }
             break;
         case CoprocessorOpcode::MT:
             switch (coprocessor) {
-                case 0:
+                case Coprocessor::IO:
                     if (rd < 8) {
                         return sp::writeIO(sp::IORegister::IOBase + 4 * rd, rtData);
                     } else if (rd < 16) {
@@ -451,9 +673,50 @@ void doCoprocessor(const Instruction instr) {
 
                         exit(0);
                     }
+                    break;
+                case Coprocessor::VectorUnit:
+                    {
+                        const VUInstruction vuInstr{.raw = instr.raw};
+
+                        regFile.setLane(rd, vuInstr.loadType.element >> 1, (u16)rtData);
+                    }
+                    break;
+                default:
+                    PLOG_FATAL << "Invalid coprocessor for MTC";
+
+                    exit(0);
             }
             break;
         default:
+            if (op >= CoprocessorOpcode::COMPUTE) {
+                if (coprocessor != Coprocessor::VectorUnit) {
+                    PLOG_FATAL << "Invalid coprocessor for COMPUTE";
+
+                    exit(0);
+                }
+
+                const VUInstruction vuInstr{.raw = instr.raw};
+
+                const u32 op = vuInstr.computeType.opcode;
+                switch (op) {
+                    case VUComputeOpcode::VMULF:
+                        VMULF(vuInstr);
+                        break;
+                    case VUComputeOpcode::VMACF:
+                        VMACF(vuInstr);
+                        break;
+                    case VUComputeOpcode::VXOR:
+                        VXOR(vuInstr);
+                        break;
+                    default:
+                        PLOG_FATAL << "Unrecognized COMPUTE opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
+
+                        exit(0);
+                }
+
+                return;
+            }
+
             PLOG_FATAL << "Unrecognized coprocessor opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
 
             exit(0);
@@ -537,6 +800,9 @@ void doLoadStore(const Instruction instr) {
             case LoadStoreOp::SB:
                 std::printf("[%03X:%08X] sb %s, %04X(%s); [%03X] = %02X\n", pc, instr.raw, rtName, imm, baseName, addr, (u8)data);
                 break;
+            case LoadStoreOp::SH:
+                std::printf("[%03X:%08X] sh %s, %04X(%s); [%03X] = %04X\n", pc, instr.raw, rtName, imm, baseName, addr, (u16)data);
+                break;
             case LoadStoreOp::SW:
                 std::printf("[%03X:%08X] sw %s, %04X(%s); [%03X] = %08X\n", pc, instr.raw, rtName, imm, baseName, addr, data);
                 break;
@@ -562,9 +828,40 @@ void doLoadStore(const Instruction instr) {
         case LoadStoreOp::SB:
             write(addr, (u8)get(rt));
             break;
+        case LoadStoreOp::SH:
+            write(addr, (u16)get(rt));
+            break;
         case LoadStoreOp::SW:
             write(addr, get(rt));
             break;
+    }
+}
+
+void LDV(const VUInstruction instr) {
+    const u32 base = instr.loadType.base;
+    const u32 vt = instr.loadType.vt;
+
+    u32 element = instr.loadType.element;
+
+    const u32 offset = (u32)(((i32)instr.loadType.offset << 25) >> 22);
+
+    u32 addr = (get(base) + offset) & 0xFFF;
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const char *baseName = REG_NAMES[base];
+
+        const u32 pc = getCurrentPC();
+
+        std::printf("[%03X:%08X] ldv v%u[%u], %03X(%s); v%u[%u] = [%03X]\n", pc, instr.raw, vt, element, instr.loadType.offset << 4, baseName, vt, element, addr);
+    }
+
+    u32 lastElement = element + 7;
+    if (lastElement > 15) {
+        lastElement = 15;
+    }
+
+    for (; element <= lastElement; element++, addr++) {
+        regFile.setByte(vt, element, read<u8>(addr & 0xFFF));
     }
 }
 
@@ -588,11 +885,158 @@ void LQV(const VUInstruction instr) {
 
     u32 i = 0;
     while ((addr + i) <= ((addr & 0xFF0) + 15)) {
-        const u8 data = read<u8>(addr + i);
-
-        std::printf("v%u[%u] = [%03X] = %02X\n", vt, (element + i) & 15, addr + i, data);
+        regFile.setByte(vt, (element + i) & 15, read<u8>(addr + i));
 
         i += 1;
+    }
+}
+
+void SDV(const VUInstruction instr) {
+    const u32 base = instr.loadType.base;
+    const u32 vt = instr.loadType.vt;
+
+    const u32 element = instr.loadType.element;
+
+    const u32 offset = (u32)(((i32)instr.loadType.offset << 25) >> 22);
+
+    const u32 addr = (get(base) + offset) & 0xFFF;
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const char *baseName = REG_NAMES[base];
+
+        const u32 pc = getCurrentPC();
+
+        std::printf("[%03X:%08X] sdv v%u[%u], %03X(%s); v%u[%u] = [%03X]\n", pc, instr.raw, vt, element, instr.loadType.offset << 4, baseName, vt, element, addr);
+    }
+
+    for (u32 i = 0; i < 8; i++) {
+        write((addr + i) & 0xFFF, regFile.getByte(vt, (element + i) & 15));
+    }
+}
+
+void SQV(const VUInstruction instr) {
+    const u32 base = instr.loadType.base;
+    const u32 vt = instr.loadType.vt;
+
+    const u32 element = instr.loadType.element;
+
+    const u32 offset = (u32)(((i32)instr.loadType.offset << 25) >> 21);
+
+    const u32 addr = (get(base) + offset) & 0xFFF;
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const char *baseName = REG_NAMES[base];
+
+        const u32 pc = getCurrentPC();
+
+        std::printf("[%03X:%08X] sqv v%u[%u], %03X(%s); v%u[%u] = [%03X]\n", pc, instr.raw, vt, element, instr.loadType.offset << 4, baseName, vt, element, addr);
+    }
+
+    u32 i = 0;
+    while ((addr + i) <= ((addr & 0xFF0) + 15)) {
+        write(addr + i, regFile.getByte(vt, (element + i) & 15));
+
+        i += 1;
+    }
+}
+
+void SSV(const VUInstruction instr) {
+    const u32 base = instr.loadType.base;
+    const u32 vt = instr.loadType.vt;
+
+    const u32 element = instr.loadType.element;
+
+    const u32 offset = (u32)(((i32)instr.loadType.offset << 25) >> 24);
+
+    const u32 addr = (get(base) + offset) & 0xFFF;
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const char *baseName = REG_NAMES[base];
+
+        const u32 pc = getCurrentPC();
+
+        std::printf("[%03X:%08X] ssv v%u[%u], %03X(%s); v%u[%u] = [%03X]\n", pc, instr.raw, vt, element, instr.loadType.offset << 4, baseName, vt, element, addr);
+    }
+
+    write(addr, regFile.getLane(vt, element >> 1));
+}
+
+void VMACF(const VUInstruction instr) {
+    const u32 vd = instr.computeType.vd;
+    const u32 vs = instr.computeType.vs;
+    const u32 vt = instr.computeType.vt;
+
+    const u32 broadcastMod = instr.computeType.broadcastMod;
+
+    Accumulator &acc = regFile.acc;
+
+    VectorRegister &vsData = regFile.vuRegs[vs];
+    VectorRegister vtData = regFile.broadcast(vt, broadcastMod);
+
+    for (u64 i = 0; i < NUM_LANES; i++) {
+        const i32 product = (i32)vsData.getSignedLane(i) * (i32)vtData.getSignedLane(i) * 2;
+
+        acc.setSignedLane(i, acc.getSignedLane(i) + (i64)product);
+
+        regFile.setLane(vd, i, clampSigned(acc.getSignedLane(i) >> 16));
+    }
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const u32 pc = getCurrentPC();
+
+        std::printf("[%03X:%08X] vmacf v%u, v%u, v%u[%u]\n", pc, instr.raw, vd, vs, vt, broadcastMod);
+    }
+}
+
+void VMULF(const VUInstruction instr) {
+    const u32 vd = instr.computeType.vd;
+    const u32 vs = instr.computeType.vs;
+    const u32 vt = instr.computeType.vt;
+
+    const u32 broadcastMod = instr.computeType.broadcastMod;
+
+    Accumulator &acc = regFile.acc;
+
+    VectorRegister &vsData = regFile.vuRegs[vs];
+    VectorRegister vtData = regFile.broadcast(vt, broadcastMod);
+
+    for (u64 i = 0; i < NUM_LANES; i++) {
+        const i32 product = (i32)vsData.getSignedLane(i) * (i32)vtData.getSignedLane(i) * 2 + 0x8000;
+
+        acc.setSignedLane(i, product);
+
+        regFile.setLane(vd, i, clampSigned(acc.getSignedLane(i) >> 16));
+    }
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const u32 pc = getCurrentPC();
+
+        std::printf("[%03X:%08X] vmulf v%u, v%u, v%u[%u]\n", pc, instr.raw, vd, vs, vt, broadcastMod);
+    }
+}
+
+void VXOR(const VUInstruction instr) {
+    const u32 vd = instr.computeType.vd;
+    const u32 vs = instr.computeType.vs;
+    const u32 vt = instr.computeType.vt;
+
+    const u32 broadcastMod = instr.computeType.broadcastMod;
+
+    Accumulator &acc = regFile.acc;
+
+    VectorRegister &vsData = regFile.vuRegs[vs];
+    VectorRegister vtData = regFile.broadcast(vt, broadcastMod);
+
+    for (u64 i = 0; i < NUM_LANES; i++) {
+        acc.setShort(i, 0, vsData.getLane(i) ^ vtData.getLane(i));
+
+        regFile.setLane(vd, i, acc.getShort(i, 0));
+    }
+
+    if constexpr (ENABLE_DISASSEMBLER) {
+        const u32 pc = getCurrentPC();
+
+        std::printf("[%03X:%08X] vxor v%u, v%u, v%u[%u]\n", pc, instr.raw, vd, vs, vt, broadcastMod);
     }
 }
 
@@ -612,6 +1056,12 @@ void doInstruction() {
                     case SpecialOpcode::SRL:
                         doALURegister<ALUOpReg::SRL>(instr);
                         break;
+                    case SpecialOpcode::SRA:
+                        doALURegister<ALUOpReg::SRA>(instr);
+                        break;
+                    case SpecialOpcode::SLLV:
+                        doALURegister<ALUOpReg::SLLV>(instr);
+                        break;
                     case SpecialOpcode::JR:
                         doJump<JumpOp::JR>(instr);
                         break;
@@ -628,12 +1078,37 @@ void doInstruction() {
                     case SpecialOpcode::SUB:
                         doALURegister<ALUOpReg::SUB>(instr);
                         break;
+                    case SpecialOpcode::AND:
+                        doALURegister<ALUOpReg::AND>(instr);
+                        break;
+                    case SpecialOpcode::OR:
+                        doALURegister<ALUOpReg::OR>(instr);
+                        break;
+                    case SpecialOpcode::NOR:
+                        doALURegister<ALUOpReg::NOR>(instr);
+                        break;
                     default:
                         PLOG_FATAL << "Unrecognized function " << std::hex << funct << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
 
                         exit(0);
                 }
             }   
+            break;
+        case Opcode::REGIMM: {
+                const u32 op = instr.iType.rt;
+                switch (op) {
+                    case RegimmOpcode::BLTZ:
+                        doBranch<BranchOp::BLTZ>(instr);
+                        break;
+                    case RegimmOpcode::BGEZ:
+                        doBranch<BranchOp::BGEZ>(instr);
+                        break;
+                    default:
+                        PLOG_FATAL << "Unrecognized REGIMM opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
+
+                        exit(0);
+                }
+            }
             break;
         case Opcode::J:
             doJump<JumpOp::J>(instr);
@@ -646,6 +1121,9 @@ void doInstruction() {
             break;
         case Opcode::BNE:
             doBranch<BranchOp::BNE>(instr);
+            break;
+        case Opcode::BLEZ:
+            doBranch<BranchOp::BLEZ>(instr);
             break;
         case Opcode::BGTZ:
             doBranch<BranchOp::BGTZ>(instr);
@@ -665,6 +1143,9 @@ void doInstruction() {
         case Opcode::COP0:
             doCoprocessor<0>(instr);
             break;
+        case Opcode::COP2:
+            doCoprocessor<2>(instr);
+            break;
         case Opcode::LB:
             doLoadStore<LoadStoreOp::LB>(instr);
             break;
@@ -683,6 +1164,9 @@ void doInstruction() {
         case Opcode::SB:
             doLoadStore<LoadStoreOp::SB>(instr);
             break;
+        case Opcode::SH:
+            doLoadStore<LoadStoreOp::SH>(instr);
+            break;
         case Opcode::SW:
             doLoadStore<LoadStoreOp::SW>(instr);
             break;
@@ -692,11 +1176,36 @@ void doInstruction() {
 
                 const u32 op = vuInstr.loadType.opcode;
                 switch (op) {
+                    case VULoadOpcode::LDV:
+                        LDV(vuInstr);
+                        break;
                     case VULoadOpcode::LQV:
                         LQV(vuInstr);
                         break;
                     default:
                         PLOG_FATAL << "Unrecognized VU load opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
+
+                        exit(0);
+                }
+            }
+            break;
+        case Opcode::SWC2:
+            {
+                const VUInstruction vuInstr{.raw = instr.raw};
+
+                const u32 op = vuInstr.loadType.opcode;
+                switch (op) {
+                    case VUStoreOpcode::SSV:
+                        SSV(vuInstr);
+                        break;
+                    case VUStoreOpcode::SDV:
+                        SDV(vuInstr);
+                        break;
+                    case VUStoreOpcode::SQV:
+                        SQV(vuInstr);
+                        break;
+                    default:
+                        PLOG_FATAL << "Unrecognized VU store opcode " << std::hex << op << " (instruction = " << instr.raw << ", PC = " << getCurrentPC() << ")";
 
                         exit(0);
                 }

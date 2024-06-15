@@ -13,6 +13,7 @@ namespace hw::rsp {
 
 union VUInstruction {
     u32 raw;
+
     struct {
         u32 offset : 7;
         u32 element : 4;
@@ -21,6 +22,15 @@ union VUInstruction {
         u32 base : 5;
         u32 : 6;
     } loadType;
+
+    struct {
+        u32 opcode : 6;
+        u32 vd : 5;
+        u32 vs : 5;
+        u32 vt : 5;
+        u32 broadcastMod : 4;
+        u32 : 7;
+    } computeType;
 };
 
 void init();
@@ -47,7 +57,15 @@ void advancePC();
 
 u32 fetch();
 
+void LDV(const VUInstruction instr);
 void LQV(const VUInstruction instr);
+void SDV(const VUInstruction instr);
+void SQV(const VUInstruction instr);
+void SSV(const VUInstruction instr);
+
+void VMACF(const VUInstruction instr);
+void VMULF(const VUInstruction instr);
+void VXOR(const VUInstruction instr);
 
 void doInstruction();
 
