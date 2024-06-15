@@ -51,6 +51,7 @@ set(SOURCES
     src/hw/rdp/rdp.cpp
     src/hw/rsp/rsp.cpp
     src/renderer/renderer.cpp
+    src/sys/audio.cpp
     src/sys/emulator.cpp
     src/sys/memory.cpp
     src/sys/scheduler.cpp
@@ -79,6 +80,7 @@ set(HEADERS
     include/hw/rdp/rdp.hpp
     include/hw/rsp/rsp.hpp
     include/renderer/renderer.hpp
+    include/sys/audio.hpp
     include/sys/emulator.hpp
     include/sys/memory.hpp
     include/sys/scheduler.hpp

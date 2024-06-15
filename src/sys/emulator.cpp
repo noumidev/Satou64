@@ -28,6 +28,7 @@
 
 #include "renderer/renderer.hpp"
 
+#include "sys/audio.hpp"
 #include "sys/memory.hpp"
 #include "sys/scheduler.hpp"
 
@@ -67,6 +68,8 @@ void init(const char *bootPath, const char *pifPath, const char *romPath) {
     sys::memory::init(bootPath, romPath);
     sys::scheduler::init();
 
+    sys::audio::init();
+
     hw::pif::memory::init(pifPath);
 
     hw::cpu::init();
@@ -92,6 +95,8 @@ void deinit() {
     sys::memory::deinit();
     sys::scheduler::deinit();
 
+    sys::audio::deinit();
+
     hw::pif::memory::deinit();
 
     hw::cpu::deinit();
@@ -111,6 +116,8 @@ void deinit() {
     hw::vi::deinit();
 
     renderer::deinit();
+
+    SDL_Quit();
 }
 
 void run() {
@@ -133,6 +140,8 @@ void reset() {
 
     sys::memory::reset();
     sys::scheduler::reset();
+
+    sys::audio::reset();
 
     hw::pif::memory::reset();
 

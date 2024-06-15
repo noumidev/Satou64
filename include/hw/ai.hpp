@@ -27,8 +27,18 @@ void deinit();
 
 void reset();
 
+i64 getAICycles();
+
+bool isEnabled();
+
+void updateStatus();
+
+u32 getSamples();
+
 u32 readIO(const u64 ioaddr);
 
 void writeIO(const u64 ioaddr, const u32 data);
+
+void doSample();
 
 }

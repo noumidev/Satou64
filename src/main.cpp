@@ -13,7 +13,7 @@
 int main(int argc, char **argv) {
     // Initialize logger
     static plog::ColorConsoleAppender<plog::FuncMessageFormatter> consoleAppender;
-    plog::init(plog::verbose, &consoleAppender);
+    plog::init(plog::fatal, &consoleAppender);
 
     if (argc < 4) {
         PLOG_ERROR << "Usage: Satou64 [path to boot ROM] [path to PIF-NUS ROM] [path to N64 ROM]";
