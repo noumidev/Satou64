@@ -62,8 +62,6 @@ void deinit() {
     SDL_DestroyTexture(screen.texture);
     SDL_DestroyRenderer(screen.renderer);
     SDL_DestroyWindow(screen.window);
-
-    SDL_Quit();
 }
 
 void reset() {}
@@ -78,6 +76,9 @@ void changeResolution(const u32 width) {
         case 320:
         case 336:
             screen.height = 256;
+            break;
+        case 400:
+            screen.height = 240;
             break;
         case 640:
             screen.height = 512;
@@ -141,6 +142,7 @@ void drawFrameBuffer(const u64 paddr, const u32 format) {
 
     // Draw frame buffer
     SDL_UpdateTexture(screen.texture, nullptr, frameBuffer.data(), 4 * screen.width);
+    SDL_RenderClear(screen.renderer);
     SDL_RenderCopy(screen.renderer, screen.texture, nullptr, nullptr);
     SDL_RenderPresent(screen.renderer);
 }
